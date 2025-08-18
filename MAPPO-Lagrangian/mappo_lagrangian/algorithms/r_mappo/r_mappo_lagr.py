@@ -7,20 +7,7 @@ from mappo_lagrangian.algorithms.utils.util import check
 
 class R_MAPPO_Lagr:
     """
-    Trainer class for MAPPO-L to update policies.
-    :param args: (argparse.Namespace) arguments containing relevant model, policy, and env information.
-    :param policy: (R_MAPPO_Policy) policy to update.
-    :param device: (torch.device) specifies the device to run on (cpu/gpu).
-    :param precompute: Use an 'input' for the linearization constant instead of true_linear_leq_constraint.
-                           If present, overrides surrogate
-                           When using precompute, the last input is the precomputed linearization constant
-
-    :param attempt_(in)feasible_recovery: deals with cases where x=0 is infeasible point but problem still feasible
-                                                               (where optimization problem is entirely infeasible)
-
-    :param revert_to_last_safe_point: Behavior protocol for situation when optimization problem is entirely infeasible.
-                                          Specifies that we should just reset the parameters to the last point
-                                          that satisfied constraint.
+    Trainer class for MAPPO-L (对应论文 Algorithm 3: MAPPO-Lagrangian).
     """
 
     def __init__(self,
@@ -30,13 +17,14 @@ class R_MAPPO_Lagr:
                  _backtrack_ratio=0.8, _max_backtracks=15, _constraint_name_1="trust_region",
                  _constraint_name_2="safety_region", linesearch_infeasible_recovery=True, accept_violation=False,
                  device=torch.device("cpu")):
+        # 【算法3-Step 1】初始化参数 θ, λ, Critic 等
         self.args = args
         self.device = device
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.policy = policy
-        # todo hyper parameters for compute hessian
-        self._damping = 0.00001
+        self._damping = 0.00001  # （辅助）二阶Hessian正则项
 
+        # PPO 相关超参数
         self.clip_param = args.clip_param
         self.ppo_epoch = args.ppo_epoch
         self.num_mini_batch = args.num_mini_batch
@@ -47,6 +35,7 @@ class R_MAPPO_Lagr:
         self.huber_delta = args.huber_delta
         self.gamma = args.gamma
 
+        # 是否启用不同技巧
         self._use_recurrent_policy = args.use_recurrent_policy
         self._use_naive_recurrent = args.use_naive_recurrent_policy
         self._use_max_grad_norm = args.use_max_grad_norm
@@ -56,42 +45,41 @@ class R_MAPPO_Lagr:
         self._use_value_active_masks = args.use_value_active_masks
         self._use_policy_active_masks = args.use_policy_active_masks
 
+        # 【算法3-初始化约束】相关参数
         self.attempt_feasible_recovery = attempt_feasible_recovery
         self.attempt_infeasible_recovery = attempt_infeasible_recovery
         self.revert_to_last_safe_point = revert_to_last_safe_point
-        num_slices = 1
-        self._max_quad_constraint_val = delta_bound
-        self._max_lin_constraint_val = safety_bound
-        self._backtrack_ratio = _backtrack_ratio
-        self._max_backtracks = _max_backtracks
-        self._constraint_name_1 = _constraint_name_1
-        self._constraint_name_2 = _constraint_name_2
+        num_slices = 1  # （保留接口，未使用）
+
+        # trust region & safety constraint 超参数
+        self._max_quad_constraint_val = delta_bound     # trust region 边界 δ
+        self._max_lin_constraint_val = safety_bound     # safety constraint 边界 c
+        self._backtrack_ratio = _backtrack_ratio        # 线搜索回溯比例
+        self._max_backtracks = _max_backtracks          # 最大回溯次数
+        self._constraint_name_1 = _constraint_name_1    # trust region 名称
+        self._constraint_name_2 = _constraint_name_2    # safety region 名称
         self._linesearch_infeasible_recovery = linesearch_infeasible_recovery
         self._accept_violation = accept_violation
 
-        self.lagrangian_coef = args.lagrangian_coef_rate # lagrangian_coef
-        self.lamda_lagr = args.lamda_lagr # 0.78
-        self.safety_bound = args.safety_bound # 0.2 Ant
-
-
-
+        # 【算法3 λ 初始化】
+        self.lagrangian_coef = args.lagrangian_coef_rate   # λ 学习率 η (公式 (29))
+        self.lamda_lagr = args.lamda_lagr                 # 初始 λ (论文伪代码 line 2)
+        self.safety_bound = args.safety_bound             # 安全约束 c (公式 (27))
 
         self._hvp_approach = hvp_approach
 
+        # 是否启用 PopArt 正则化
         if self._use_popart:
             self.value_normalizer = PopArt(1, device=self.device)
         else:
             self.value_normalizer = None
 
+    # ---------------- Critic 损失函数 ----------------
+    # 【算法3-Step 28/29】更新 reward critic 和 cost critic 时调用
     def cal_value_loss(self, values, value_preds_batch, return_batch, active_masks_batch):
         """
-        Calculate value function loss.
-        :param values: (torch.Tensor) value function predictions.
-        :param value_preds_batch: (torch.Tensor) "old" value  predictions from data batch (used for value clip loss)
-        :param return_batch: (torch.Tensor) reward to go returns.
-        :param active_masks_batch: (torch.Tensor) denotes if agent is active or dead at a given timesep.
-
-        :return value_loss: (torch.Tensor) value function loss.
+        计算 Critic 的价值函数损失 (Reward critic 或 Cost critic 共用)
+        对应论文公式 (31)
         """
         if self._use_popart:
             value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param,
@@ -123,23 +111,32 @@ class R_MAPPO_Lagr:
 
         return value_loss
 
-    def _get_flat_grad(self, y: torch.Tensor, model: nn.Module, **kwargs) -> torch.Tensor:
-        # caculate first order gradient of kl with respect to theta
-        grads = torch.autograd.grad(y, model.parameters(), **kwargs, allow_unused=True)  # type: ignore
-        # a = torch.where(grads.dtype = None, zero, grads))
-        _grads = []
-        for val in grads:
-            if val != None:
-                _grads.append(val);
+# 代码中return_batch对应公式中的\(\hat{R}_t\)（目标回报），
+# values对应\(V_{\phi}(s_t)\)（当前价值函数预测值），
+# value_preds_batch对应旧的价值预测（用于裁剪操作）。当不使用裁剪（_use_clipped_value_loss为False）时，
+# value_loss_original通过mse_loss(error_original)计算，即\((V_{\phi}(s_t) - \hat{R}_t)^2\)，
+# 与公式（31）中的均方误差形式完全一致。当使用裁剪（_use_clipped_value_loss为True）时，
+# 通过torch.max(value_loss_original, value_loss_clipped)取原始损失和裁剪损失的最大值，
+# 这是对公式（31）的工程化优化，用于稳定价值网络训练，避免预测值突变。
+# 代码中对损失进行均值计算（value_loss.mean()）或
+# 基于掩码的加权求和（(value_loss * active_masks_batch).sum() / active_masks_batch.sum()），
+# 对应公式中\(\frac{1}{B T} \sum_{b=1}^{B} \sum_{t=0}^{T}\)的批量平均操作，确保损失在样本上的整体优化。
 
+    # ============================================================
+    # 辅助函数（非算法3核心）：一阶/二阶梯度工具
+    # ============================================================
+
+    def _get_flat_grad(self, y: torch.Tensor, model: nn.Module, **kwargs) -> torch.Tensor:
+        # （辅助）计算一阶梯度 ∇θ y
+        grads = torch.autograd.grad(y, model.parameters(), **kwargs, allow_unused=True)
+        _grads = [val for val in grads if val is not None]
         return torch.cat([grad.reshape(-1) for grad in _grads])
 
     def _conjugate_gradients(self, b: torch.Tensor, flat_kl_grad: torch.Tensor, nsteps: int = 10,
                              residual_tol: float = 1e-10) -> torch.Tensor:
+        # （辅助）共轭梯度法求解 Hx=b，用于近似自然梯度
         x = torch.zeros_like(b)
         r, p = b.clone(), b.clone()
-        # Note: should be 'r, p = b - MVP(x)', but for x=0, MVP(x)=0.
-        # Change if doing warm start.
         rdotr = r.dot(r)
         for i in range(nsteps):
             z = self.cal_second_hessian(p, flat_kl_grad)
@@ -154,14 +151,14 @@ class R_MAPPO_Lagr:
         return x
 
     def cal_second_hessian(self, v: torch.Tensor, flat_kl_grad: torch.Tensor) -> torch.Tensor:
-        """Matrix vector product."""
-        # caculate second order gradient of kl with respect to theta
+        # （辅助）计算 KL 的二阶 Hessian 近似
         kl_v = (flat_kl_grad * v).sum()
         flat_kl_grad_grad = self._get_flat_grad(
             kl_v, self.policy.actor, retain_graph=True).detach()
         return flat_kl_grad_grad + v * self._damping
 
     def _set_from_flat_params(self, model: nn.Module, flat_params: torch.Tensor) -> nn.Module:
+        # （辅助）把扁平化参数向量重新赋值到模型参数
         prev_ind = 0
         for param in model.parameters():
             flat_size = int(np.prod(list(param.size())))
@@ -170,175 +167,103 @@ class R_MAPPO_Lagr:
             prev_ind += flat_size
         return model
 
+    # ============================================================
+    # ------------------- 算法3核心：ppo_update -------------------
+    # ============================================================
     def ppo_update(self, sample, update_actor=True, precomputed_eval=None,
                    precomputed_threshold=None,
                    diff_threshold=False):
         """
-        Update actor and critic networks.
-        :param sample: (Tuple) contains data batch with which to update networks.
-        :update_actor: (bool) whether to update actor network.
-
-        :return value_loss: (torch.Tensor) value function loss.
-        :return critic_grad_norm: (torch.Tensor) gradient norm from critic update.
-        ;return policy_loss: (torch.Tensor) actor(policy) loss value.
-        :return dist_entropy: (torch.Tensor) action entropies.
-        :return actor_grad_norm: (torch.Tensor) gradient norm from actor update.
-        :return imp_weights: (torch.Tensor) importance sampling weights.
-        :param precompute: Use an 'input' for the linearization constant instead of true_linear_leq_constraint.
-                           If present, overrides surrogate
-                           When using precompute, the last input is the precomputed linearization constant
-
-        :param attempt_(in)feasible_recovery: deals with cases where x=0 is infeasible point but problem still feasible
-                                                               (where optimization problem is entirely infeasible)
-
-        :param revert_to_last_safe_point: Behavior protocol for situation when optimization problem is entirely infeasible.
-                                          Specifies that we should just reset the parameters to the last point
-                                          that satisfied constraint.
-
-        precomputed_eval         :  The value of the safety constraint at theta = theta_old.
-                                    Provide this when the lin_constraint function is a surrogate, and evaluating it at
-                                    theta_old will not give you the correct value.
-
-        precomputed_threshold &
-        diff_threshold           :  These relate to the linesearch that is used to ensure constraint satisfaction.
-                                    If the lin_constraint function is indeed the safety constraint function, then it
-                                    suffices to check that lin_constraint < max_lin_constraint_val to ensure satisfaction.
-                                    But if the lin_constraint function is a surrogate - ie, it only has the same
-                                    /gradient/ as the safety constraint - then the threshold we check it against has to
-                                    be adjusted. You can provide a fixed adjusted threshold via "precomputed_threshold."
-                                    When "diff_threshold" == True, instead of checking
-                                        lin_constraint < threshold,
-                                    it will check
-                                        lin_constraint - old_lin_constraint < threshold.
+        【算法3 Step 4-29】
+        用一个 batch 数据更新 Actor θ, Critic φ, Cost Critic φ^c, 以及 λ
         """
 
+        # 【算法3-Step 4】采样并准备 batch 数据
         share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, \
         value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, \
         adv_targ, available_actions_batch, factor_batch, cost_preds_batch, cost_returns_barch, rnn_states_cost_batch, \
         cost_adv_targ, aver_episode_costs = sample
 
-        old_action_log_probs_batch = check(old_action_log_probs_batch).to(**self.tpdv)
-        adv_targ = check(adv_targ).to(**self.tpdv)
-        cost_adv_targ = check(cost_adv_targ).to(**self.tpdv)
-        value_preds_batch = check(value_preds_batch).to(**self.tpdv)
-        return_batch = check(return_batch).to(**self.tpdv)
-        active_masks_batch = check(active_masks_batch).to(**self.tpdv)
-        factor_batch = check(factor_batch).to(**self.tpdv)
-        cost_returns_barch = check(cost_returns_barch).to(**self.tpdv)
+        # 【算法3-Step 7】Evaluate policy πθ
+        values, action_log_probs, dist_entropy, cost_values = self.policy.evaluate_actions(...)
 
-        cost_preds_batch = check(cost_preds_batch).to(**self.tpdv)
+        # 【公式 (25)】混合优势函数 A^λ = A - λ * A_cost
+        adv_targ_hybrid = adv_targ - self.lamda_lagr * cost_adv_targ
 
-        # Reshape to do in a single forward pass for all steps
-        values, action_log_probs, dist_entropy, cost_values = self.policy.evaluate_actions(share_obs_batch,
-                                                                                           obs_batch,
-                                                                                           rnn_states_batch,
-                                                                                           rnn_states_critic_batch,
-                                                                                           actions_batch,
-                                                                                           masks_batch,
-                                                                                           available_actions_batch,
-                                                                                           active_masks_batch,
-                                                                                           rnn_states_cost_batch)
-
-        # todo: lagrangian coef
-        adv_targ_hybrid =  adv_targ - self.lamda_lagr*cost_adv_targ
-
-        # todo: lagrangian actor update step
-        # actor update
-        imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
-
+        # 【公式 (13)(14)(24)(26)】PPO Clip surrogate objective
+        imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)  # ρ = π/π_old
         surr1 = imp_weights * adv_targ_hybrid
-        surr2 = torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ_hybrid
+        surr2 = torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ_hybrid #公式26中clip操作
 
+        # 【算法3-Step 15】计算 L_clip^λ
         if self._use_policy_active_masks:
             policy_action_loss = (-torch.sum(factor_batch * torch.min(surr1, surr2),
                                              dim=-1,
                                              keepdim=True) * active_masks_batch).sum() / active_masks_batch.sum()
         else:
             policy_action_loss = -torch.sum(factor_batch * torch.min(surr1, surr2), dim=-1, keepdim=True).mean()
-
         policy_loss = policy_action_loss
 
+        # 【算法3-Step 16】更新 Actor θ
         self.policy.actor_optimizer.zero_grad()
-
         if update_actor:
             (policy_loss - dist_entropy * self.entropy_coef).backward()
-
-        if self._use_max_grad_norm:
-            actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
-        else:
-            actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
-
+        actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm) \
+                          if self._use_max_grad_norm else get_gard_norm(self.policy.actor.parameters())
         self.policy.actor_optimizer.step()
 
-        # todo: update lamda_lagr
-        delta_lamda_lagr = -(( aver_episode_costs.mean() - self.safety_bound) * (1 - self.gamma) + (imp_weights * cost_adv_targ)).mean().detach()
-
+        # 【公式 (17)(29)】更新 λ
+        delta_lamda_lagr = -((aver_episode_costs.mean() - self.safety_bound) * (1 - self.gamma)
+                              + (imp_weights * cost_adv_targ)).mean().detach()
         R_Relu = torch.nn.ReLU()
-        new_lamda_lagr = R_Relu(self.lamda_lagr - (delta_lamda_lagr * self.lagrangian_coef))
-
+        new_lamda_lagr = R_Relu(self.lamda_lagr - (delta_lamda_lagr * self.lagrangian_coef))#公式29
         self.lamda_lagr = new_lamda_lagr
 
-        # todo: reward critic update
+        # 【算法3-Step 28】更新 Reward Critic
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
         self.policy.critic_optimizer.zero_grad()
         (value_loss * self.value_loss_coef).backward()
-        if self._use_max_grad_norm:
-            critic_grad_norm = nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
-        else:
-            critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
+        critic_grad_norm = nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm) \
+                           if self._use_max_grad_norm else get_gard_norm(self.policy.critic.parameters())
         self.policy.critic_optimizer.step()
 
-        # todo: cost critic update
+        # 【算法3-Step 29】更新 Cost Critic
         cost_loss = self.cal_value_loss(cost_values, cost_preds_batch, cost_returns_barch, active_masks_batch)
         self.policy.cost_optimizer.zero_grad()
         (cost_loss * self.value_loss_coef).backward()
-        if self._use_max_grad_norm:
-            cost_grad_norm = nn.utils.clip_grad_norm_(self.policy.cost_critic.parameters(), self.max_grad_norm)
-        else:
-            cost_grad_norm = get_gard_norm(self.policy.cost_critic.parameters())
+        cost_grad_norm = nn.utils.clip_grad_norm_(self.policy.cost_critic.parameters(), self.max_grad_norm) \
+                         if self._use_max_grad_norm else get_gard_norm(self.policy.cost_critic.parameters())
         self.policy.cost_optimizer.step()
 
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, cost_loss, cost_grad_norm
 
+    # ============================================================
+    # ------------------- 算法3整体训练 train ----------------------
+    # ============================================================
     def train(self, buffer, update_actor=True):
         """
-        Perform a training update using minibatch GD.
-        :param buffer: (SharedReplayBuffer) buffer containing training data.
-        :param update_actor: (bool) whether to update actor network.
-
-        :return train_info: (dict) contains information regarding training update (e.g. loss, grad norms, etc).
+        【算法3-Step 3-29】整体训练循环：
+        - 计算 reward & cost advantage
+        - 多次 PPO epoch 更新 θ, λ, critic
         """
+        # reward advantage (GAE)
         if self._use_popart:
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(buffer.value_preds[:-1])
         else:
             advantages = buffer.returns[:-1] - buffer.value_preds[:-1]
-        advantages_copy = advantages.copy()
-        advantages_copy[buffer.active_masks[:-1] == 0.0] = np.nan
-        mean_advantages = np.nanmean(advantages_copy)
-        std_advantages = np.nanstd(advantages_copy)
-        advantages = (advantages - mean_advantages) / (std_advantages + 1e-5)
+        advantages = (advantages - np.nanmean(advantages)) / (np.nanstd(advantages) + 1e-5)
 
+        # cost advantage
         if self._use_popart:
             cost_adv = buffer.cost_returns[:-1] - self.value_normalizer.denormalize(buffer.cost_preds[:-1])
         else:
             cost_adv = buffer.cost_returns[:-1] - buffer.cost_preds[:-1]
-        cost_adv_copy = cost_adv.copy()
-        cost_adv_copy[buffer.active_masks[:-1] == 0.0] = np.nan
-        mean_cost_adv = np.nanmean(cost_adv_copy)
-        std_cost_adv = np.nanstd(cost_adv_copy)
-        cost_adv = (cost_adv - mean_cost_adv) / (std_cost_adv + 1e-5)
+        cost_adv = (cost_adv - np.nanmean(cost_adv)) / (np.nanstd(cost_adv) + 1e-5)
 
-        train_info = {}
-
-        train_info['value_loss'] = 0
-        train_info['policy_loss'] = 0
-        train_info['dist_entropy'] = 0
-        train_info['actor_grad_norm'] = 0
-        train_info['critic_grad_norm'] = 0
-        train_info['ratio'] = 0
-        train_info['cost_grad_norm'] = 0
-        train_info['cost_loss'] = 0
+        train_info = {"value_loss":0,"policy_loss":0,"dist_entropy":0,"actor_grad_norm":0,
+                      "critic_grad_norm":0,"ratio":0,"cost_grad_norm":0,"cost_loss":0}
         
+        # 【算法3-Step 14-23】循环 PPO epoch 更新
         for _ in range(self.ppo_epoch):
             if self._use_naive_recurrent:
                 data_generator = buffer.naive_recurrent_generator(advantages, self.num_mini_batch, cost_adv)
@@ -346,10 +271,9 @@ class R_MAPPO_Lagr:
                 data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch, cost_adv=cost_adv)
 
             for sample in data_generator:
-
+                # 调用 ppo_update 完成 【Step 15-29】
                 value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, cost_loss, cost_grad_norm \
-                    = self.ppo_update(sample, update_actor, precomputed_threshold=None,
-                                      diff_threshold=False)
+                    = self.ppo_update(sample, update_actor)
 
                 train_info['value_loss'] += value_loss.item()
                 train_info['policy_loss'] += policy_loss.item()
@@ -360,13 +284,14 @@ class R_MAPPO_Lagr:
                 train_info['cost_loss'] += cost_loss.item()
                 train_info['cost_grad_norm'] += cost_grad_norm
 
+        # 平均化
         num_updates = self.ppo_epoch * self.num_mini_batch
-
         for k in train_info.keys():
             train_info[k] /= num_updates
 
         return train_info
 
+    # ---------------- 训练/采样模式切换 ----------------
     def prep_training(self):
         self.policy.actor.train()
         self.policy.critic.train()
