@@ -139,13 +139,22 @@ class Runner(object):
             self.buffer[agent_id].compute_cost_returns(next_costs, self.trainer[agent_id].value_normalizer)
 
     def train(self):
-        # have modified for SAD_PPO
+        """
+        改动：原本是所有智能体都更新，现在改成随机采样一部分智能体更新。
+        """
         train_infos = []
         cost_train_infos = []
-        # random update order
+
+        # 每次更新的智能体比例（默认=1.0，即全部更新）
+        update_ratio = getattr(self.all_args, "agent_update_ratio", 1.0)
+        k = max(1, int(self.num_agents * update_ratio))
+        selected_agents = np.random.choice(self.num_agents, k, replace=False)
+
+        # 初始化 importance factor
         action_dim = self.buffer[0].actions.shape[-1]
         factor = np.ones((self.episode_length, self.n_rollout_threads, action_dim), dtype=np.float32)
-        for agent_id in torch.randperm(self.num_agents):
+
+        for agent_id in selected_agents:
             self.trainer[agent_id].prep_training()
             self.buffer[agent_id].update_factor(factor)
             available_actions = None if self.buffer[agent_id].available_actions is None \
@@ -160,9 +169,6 @@ class Runner(object):
                 available_actions,
                 self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
 
-            # safe_buffer, cost_adv = self.buffer_filter(agent_id)
-            # train_info = self.trainer[agent_id].train(safe_buffer, cost_adv)
-
             train_info = self.trainer[agent_id].train(self.buffer[agent_id])
 
             new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
@@ -176,7 +182,6 @@ class Runner(object):
                                                                                                 self.n_rollout_threads,
                                                                                                 action_dim))
             train_infos.append(train_info)
-
             self.buffer[agent_id].after_update()
 
         return train_infos, cost_train_infos
@@ -235,8 +240,6 @@ class Runner(object):
         if buffer.factor is not None:
             buffer.factor = (buffer.factor, del_ids, 1)
         return buffer
-
-   
 
     def save(self):
         for agent_id in range(self.num_agents):
