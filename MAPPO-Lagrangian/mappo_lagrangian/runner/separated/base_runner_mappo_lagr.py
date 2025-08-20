@@ -140,17 +140,17 @@ class Runner(object):
 
     def train(self):
         """
-        改动：原本是所有智能体都更新，现在改成随机采样一部分智能体更新。
+        改动：用常量控制每次更新的智能体比例。
         """
         train_infos = []
         cost_train_infos = []
 
-        # 每次更新的智能体比例（默认=1.0，即全部更新）
-        update_ratio = getattr(self.all_args, "agent_update_ratio", 1.0)
-        k = max(1, int(self.num_agents * update_ratio))
+        # 固定常量，控制每次更新多少比例的智能体
+        AGENT_UPDATE_RATIO = 0.5  # 例如：0.5 表示更新一半智能体
+        k = max(1, int(self.num_agents * AGENT_UPDATE_RATIO))
         selected_agents = np.random.choice(self.num_agents, k, replace=False)
 
-        # 初始化 importance factor
+        # importance factor
         action_dim = self.buffer[0].actions.shape[-1]
         factor = np.ones((self.episode_length, self.n_rollout_threads, action_dim), dtype=np.float32)
 
@@ -182,6 +182,7 @@ class Runner(object):
                                                                                                 self.n_rollout_threads,
                                                                                                 action_dim))
             train_infos.append(train_info)
+
             self.buffer[agent_id].after_update()
 
         return train_infos, cost_train_infos
