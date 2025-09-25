@@ -1,14 +1,6 @@
-### 🚀 异步MAPPO-Lagrangian 更新
+## 🚀 异步MAPPO-Lagrangian 更新
 
 **重要更新**: 我们新增了异步训练功能，显著提升训练效率！
-
-### 📚 快速导航
-- 🎯 **新手用户**: [快速开始指南](./MAPPO-Lagrangian/快速开始.md) - 5分钟快速上手
-- 📋 **实践用户**: [运行命令大全](./MAPPO-Lagrangian/运行命令大全.md) - 各种场景的具体命令  
-- 🔧 **系统配置**: [Linux运行指南](./MAPPO-Lagrangian/Linux运行指南.md) - 详细的环境配置
-- ❓ **问题解决**: [常见问题解答](./MAPPO-Lagrangian/常见问题解答.md) - 快速解决常见问题
-- 🧠 **技术原理**: [异步算法说明](./MAPPO-Lagrangian/README_async.md) - 深入了解算法原理
-- 🗺️ **文档导航**: [完整文档导航](./MAPPO-Lagrangian/文档导航.md) - 找到你需要的文档
 
 ### ⚡ 异步训练优势
 - 🚀 **训练速度提升 30-50%**
@@ -16,23 +8,25 @@
 - 🎯 **效果保持与原算法相近**
 - 🔒 **训练更加稳定**
 
-### 🎯 快速开始异步训练
+### 🎯 使用方式 (完全不变！)
 ```bash
-# 激活环境
+# 1. 激活环境
 conda activate macpo
 
-# 进入目录
+# 2. 安装项目  
 cd MAPPO-Lagrangian
+pip install -e .
 
-# 开始训练 (分层异步策略)
-python train_mujoco_async.py \
-    --env_name mujoco \
-    --scenario Ant-v2 \
-    --agent_conf 2x4 \
-    --async_mode hierarchical \
-    --selection_ratio 0.5 \
-    --num_env_steps 1000000
+# 3. 启用异步训练 (只需改一行配置)
+# 打开 mappo_lagrangian/scripts/train_mujoco.sh
+# 将 use_async=false 改为 use_async=true
+
+# 4. 运行训练 (和以前一样)
+./mappo_lagrangian/scripts/train_mujoco.sh
 ```
+
+📖 **详细说明**: [简单使用说明.md](./MAPPO-Lagrangian/简单使用说明.md)  
+🧠 **技术原理**: [异步算法说明](./MAPPO-Lagrangian/README_async.md)
 
 ---
 
