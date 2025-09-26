@@ -131,14 +131,15 @@ def main(args):
     all_args = parse_args(args, parser)
     
     # 设置异步配置
-    if all_args.use_async:
+    if all_args.use_async or all_args.algorithm_name == "async_mappo_lagr":
+        all_args.use_async = True  # 确保异步标志被设置
         all_args = setup_async_config(all_args)
         print(f"使用异步训练模式: {all_args.async_mode}")
         print(f"异步比例: {all_args.async_ratio}")
     
     print("异步MAPPO-Lagrangian配置: ", all_args)
 
-    if all_args.algorithm_name == "mappo_lagr":
+    if all_args.algorithm_name in ["mappo_lagr", "async_mappo_lagr"]:
         all_args.share_policy = False
     else:
         raise NotImplementedError
@@ -220,8 +221,8 @@ def main(args):
     if all_args.share_policy:
         from mappo_lagrangian.runner.shared.mujoco_runner import MujocoRunner as Runner
     else:
-        if all_args.algorithm_name == "mappo_lagr":
-            if all_args.use_async:
+        if all_args.algorithm_name in ["mappo_lagr", "async_mappo_lagr"]:
+            if all_args.use_async or all_args.algorithm_name == "async_mappo_lagr":
                 # 使用异步训练器
                 from mappo_lagrangian.runner.separated.async_mujoco_runner_mappo_lagr import AsyncMujocoRunner as Runner
                 print("使用异步MAPPO-Lagrangian训练器")
