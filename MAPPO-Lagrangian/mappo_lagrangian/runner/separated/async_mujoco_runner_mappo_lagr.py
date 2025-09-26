@@ -168,7 +168,12 @@ class AsyncMujocoRunner(AsyncRunner):
         for i in range(self.n_rollout_threads):
             one_hot_action_env = []
             for temp_action_env in temp_actions_env:
-                one_hot_action_env.append(temp_action_env[i])
+                # 确保索引不越界
+                if i < len(temp_action_env):
+                    one_hot_action_env.append(temp_action_env[i])
+                else:
+                    # 如果索引越界，使用第一个环境的动作作为默认值
+                    one_hot_action_env.append(temp_action_env[0])
             actions_env.append(one_hot_action_env)
 
         values = np.array(values).transpose(1, 0, 2)
@@ -251,7 +256,12 @@ class AsyncMujocoRunner(AsyncRunner):
             for i in range(self.n_eval_rollout_threads):
                 eval_one_hot_action_env = []
                 for eval_temp_action_env in eval_temp_actions_env:
-                    eval_one_hot_action_env.append(eval_temp_action_env[i])
+                    # 确保索引不越界
+                    if i < len(eval_temp_action_env):
+                        eval_one_hot_action_env.append(eval_temp_action_env[i])
+                    else:
+                        # 如果索引越界，使用第一个环境的动作作为默认值
+                        eval_one_hot_action_env.append(eval_temp_action_env[0])
                 eval_actions_env.append(eval_one_hot_action_env)
 
             # Obser reward and next obs
