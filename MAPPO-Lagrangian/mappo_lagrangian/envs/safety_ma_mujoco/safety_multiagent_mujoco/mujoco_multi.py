@@ -26,6 +26,18 @@ def env_fn(env, **kwargs) -> MultiAgentEnv:  # TODO: this may be a more complex 
 class NormalizedActions(gym.ActionWrapper):
 
     def _action(self, action):
+        action = np.array(action)
+        # 确保动作和动作空间维度匹配
+        if action.shape != self.action_space.shape:
+            # 如果维度不匹配，截取或填充到正确的维度
+            if len(action) > len(self.action_space.low):
+                action = action[:len(self.action_space.low)]
+            elif len(action) < len(self.action_space.low):
+                # 如果动作维度不足，用0填充
+                padded_action = np.zeros(self.action_space.shape)
+                padded_action[:len(action)] = action
+                action = padded_action
+        
         action = (action + 1) / 2
         action *= (self.action_space.high - self.action_space.low)
         action += self.action_space.low
