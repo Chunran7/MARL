@@ -15,8 +15,7 @@ import setproctitle
 import numpy as np
 from pathlib import Path
 import torch
-from mappo_lagrangian.config import get_config
-from mappo_lagrangian.config.async_config import AsyncConfig, HIERARCHICAL_CONFIG, IMPORTANCE_CONFIG, PROGRESSIVE_CONFIG
+from mappo_lagrangian.config import get_config, AsyncConfig, HIERARCHICAL_CONFIG, IMPORTANCE_CONFIG, PROGRESSIVE_CONFIG
 from mappo_lagrangian.envs.safety_ma_mujoco.safety_multiagent_mujoco import MujocoMulti
 from mappo_lagrangian.envs.env_wrappers import ShareSubprocVecEnv, ShareDummyVecEnv
 
