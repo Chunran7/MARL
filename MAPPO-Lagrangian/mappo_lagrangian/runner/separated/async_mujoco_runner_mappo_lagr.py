@@ -152,7 +152,7 @@ class AsyncMujocoRunner(AsyncRunner):
                                                             self.buffer[agent_id].rnn_states[step],
                                                             self.buffer[agent_id].rnn_states_critic[step],
                                                             self.buffer[agent_id].masks[step],
-                                                            self.buffer[agent_id].rnn_states_cost[step])
+                                                            rnn_states_cost=self.buffer[agent_id].rnn_states_cost[step])
             values.append(_t2n(value))
             action = _t2n(action)
             actions.append(action)
