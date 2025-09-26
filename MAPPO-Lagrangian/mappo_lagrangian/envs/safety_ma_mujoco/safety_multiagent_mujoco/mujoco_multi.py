@@ -176,7 +176,18 @@ class MujocoMulti(MultiAgentEnv):
     def step(self, actions):
 
         # need to remove dummy actions that arise due to unequal action vector sizes across agents
-        flat_actions = np.concatenate([actions[i][:self.action_space[i].low.shape[0]] for i in range(self.n_agents)])
+        # 处理actions可能是标量的情况
+        processed_actions = []
+        for i in range(self.n_agents):
+            if np.isscalar(actions[i]):
+                # 如果是标量，直接使用
+                processed_actions.append(actions[i])
+            else:
+                # 如果是数组，取前action_space维度的部分
+                action_dim = self.action_space[i].low.shape[0]
+                processed_actions.append(actions[i][:action_dim])
+        
+        flat_actions = np.concatenate(processed_actions)
         obs_n, reward_n, done_n, info_n = self.wrapped_env.step(flat_actions)
         self.steps += 1
 
