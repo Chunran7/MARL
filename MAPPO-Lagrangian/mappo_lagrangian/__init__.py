@@ -1,4 +1,4 @@
-from mappo_lagrangian import algorithms, envs, runner, scripts, utils
+from . import algorithms, envs, runner, scripts, utils
 
 
 __version__ = "0.1.0"
