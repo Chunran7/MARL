@@ -180,12 +180,17 @@ class MujocoMulti(MultiAgentEnv):
         processed_actions = []
         for i in range(self.n_agents):
             if np.isscalar(actions[i]):
-                # 如果是标量，直接使用
-                processed_actions.append(actions[i])
+                # 如果是标量，转换为1维数组
+                processed_actions.append(np.array([actions[i]]))
             else:
                 # 如果是数组，取前action_space维度的部分
                 action_dim = self.action_space[i].low.shape[0]
-                processed_actions.append(actions[i][:action_dim])
+                action_array = np.array(actions[i])
+                if action_array.ndim == 0:
+                    # 如果是0维数组，转换为1维
+                    processed_actions.append(np.array([action_array.item()]))
+                else:
+                    processed_actions.append(action_array[:action_dim])
         
         flat_actions = np.concatenate(processed_actions)
         obs_n, reward_n, done_n, info_n = self.wrapped_env.step(flat_actions)
