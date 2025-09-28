@@ -228,7 +228,7 @@ class AsyncMujocoRunner(AsyncRunner):
                 if self.use_wandb:
                     wandb.log({agent_k: v}, step=total_num_steps)
                 else:
-                    self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)
+                    self.writter.add_scalar(agent_k, v, total_num_steps)
 
     @torch.no_grad()
     def eval(self, total_num_steps):
@@ -295,7 +295,7 @@ class AsyncMujocoRunner(AsyncRunner):
                 if self.use_wandb:
                     wandb.log({k: v}, step=total_num_steps)
                 else:
-                    self.writter.add_scalars(k, {k: v}, total_num_steps)
+                    self.writter.add_scalar(k, v, total_num_steps)
         else:
             # 列表的情况（原始逻辑）
             for agent_id in range(self.num_agents):
@@ -304,4 +304,4 @@ class AsyncMujocoRunner(AsyncRunner):
                     if self.use_wandb:
                         wandb.log({agent_k: v}, step=total_num_steps)
                     else:
-                        self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)
+                        self.writter.add_scalar(agent_k, v, total_num_steps)
