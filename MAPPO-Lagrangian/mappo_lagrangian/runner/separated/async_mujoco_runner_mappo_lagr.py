@@ -44,11 +44,11 @@ class AsyncMujocoRunner(AsyncRunner):
 
             for step in range(self.episode_length):
                 # Sample actions
-                values, actions, action_log_probs, rnn_states, rnn_states_critic, cost_preds, \
+                values, actions_env, action_log_probs, rnn_states, rnn_states_critic, cost_preds, \
                 rnn_states_cost = self.collect(step)
 
                 # Obser reward cost and next obs
-                obs, share_obs, rewards, costs, dones, infos, _ = self.envs.step(actions)
+                obs, share_obs, rewards, costs, dones, infos, _ = self.envs.step(actions_env)
 
                 dones_env = np.all(dones, axis=1)
                 reward_env = np.mean(rewards, axis=1).flatten()
@@ -63,7 +63,7 @@ class AsyncMujocoRunner(AsyncRunner):
                         train_episode_costs[t] = 0
 
                 data = obs, share_obs, rewards, costs, dones, infos, \
-                       values, actions, action_log_probs, \
+                       values, actions_env, action_log_probs, \
                        rnn_states, rnn_states_critic, cost_preds, rnn_states_cost
 
                 # insert data into buffer
