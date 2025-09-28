@@ -211,16 +211,14 @@ class MujocoMulti(MultiAgentEnv):
         info = {}
         info.update(info_n)
 
-        # if done_n:
-        #     if self.steps < self.episode_limit:
-        #         info["episode_limit"] = False   # the next state will be masked out
-        #     else:
-        #         info["episode_limit"] = True    # the next state will not be masked out
+        # 确保bad_transition键始终存在
         if done_n:
             if self.steps < self.episode_limit:
                 info["bad_transition"] = False  # the next state will be masked out
             else:
                 info["bad_transition"] = True  # the next state will not be masked out
+        else:
+            info["bad_transition"] = False  # 默认情况下不是bad transition
 
         # return reward_n, done_n, info
         rewards = [[reward_n]] * self.n_agents
