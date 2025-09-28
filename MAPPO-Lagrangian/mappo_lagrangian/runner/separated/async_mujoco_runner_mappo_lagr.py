@@ -63,7 +63,7 @@ class AsyncMujocoRunner(AsyncRunner):
                         train_episode_costs[t] = 0
 
                 data = obs, share_obs, rewards, costs, dones, infos, \
-                       values, actions_env, action_log_probs, \
+                       values, actions, action_log_probs, \
                        rnn_states, rnn_states_critic, cost_preds, rnn_states_cost
 
                 # insert data into buffer
