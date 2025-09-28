@@ -19,6 +19,10 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         self.async_update_ratio = getattr(args, 'async_update_ratio', 0.7)
         self.value_update_freq = getattr(args, 'value_update_freq', 2)
         
+        # 修复缺失的cost_value_normalizer属性（实际上应该使用value_normalizer）
+        # 在标准版本中，cost相关的值也是使用value_normalizer来处理的
+        self.cost_value_normalizer = self.value_normalizer
+        
         # 用于跟踪梯度信息
         self.gradient_history = []
         self.max_gradient_history = 100
