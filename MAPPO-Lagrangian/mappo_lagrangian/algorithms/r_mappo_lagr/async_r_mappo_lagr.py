@@ -19,6 +19,9 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         self.async_update_ratio = getattr(args, 'async_update_ratio', 0.7)
         self.value_update_freq = getattr(args, 'value_update_freq', 2)
         
+        # 成本价值损失系数 - 如果未在配置中指定，使用与value_loss_coef相同的值
+        self.cost_value_loss_coef = getattr(args, 'cost_value_loss_coef', self.value_loss_coef)
+        
         # 修复缺失的cost_value_normalizer属性（实际上应该使用value_normalizer）
         # 在标准版本中，cost相关的值也是使用value_normalizer来处理的
         self.cost_value_normalizer = self.value_normalizer
