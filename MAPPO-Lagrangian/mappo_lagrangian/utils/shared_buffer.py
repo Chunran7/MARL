@@ -260,8 +260,7 @@ class SharedReplayBuffer(object):
 
             yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch,\
                   value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch,\
-                  adv_targ, available_actions_batch, self.factor, self.cost_preds, self.cost_returns, \
-                  self.rnn_states_cost, None, self.aver_episode_costs
+                  adv_targ, available_actions_batch, self.factor, self.cost_preds, self.cost_returns, self.rnn_states_cost, None, self.aver_episode_costs
 
     def naive_recurrent_generator(self, advantages, num_mini_batch):
         """
