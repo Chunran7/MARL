@@ -301,7 +301,7 @@ class SeparatedReplayBuffer(object):
                 cost_adv_targ = cost_adv[indices]
 
             if self.factor is None:
-                yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch
+                yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch, None, cost_preds_batch, cost_return_batch, rnn_states_cost_batch, cost_adv_targ, aver_episode_costs
             else:
                 if self.algo == "mappo_lagr":
                     factor_batch = factor[indices]
