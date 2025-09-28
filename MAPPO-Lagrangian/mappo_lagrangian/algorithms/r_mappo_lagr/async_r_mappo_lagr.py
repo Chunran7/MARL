@@ -97,9 +97,12 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         """
         PPO更新，支持选择性更新策略网络
         """
+        # 修复参数解包问题：标准版本有18个参数，异步版本期望15个但只得到13个
+        # 标准版本的sample解包：
         share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, \
         value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, \
-        adv_targ, available_actions_batch, cost_preds_batch, cost_return_batch, cost_adv_targ = sample
+        adv_targ, available_actions_batch, factor_batch, cost_preds_batch, cost_returns_batch, rnn_states_cost_batch, \
+        cost_adv_targ, aver_episode_costs = sample
 
         old_action_log_probs_batch = check(old_action_log_probs_batch).to(**self.tpdv)
         adv_targ = check(adv_targ).to(**self.tpdv)
@@ -107,7 +110,7 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         return_batch = check(return_batch).to(**self.tpdv)
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
         cost_preds_batch = check(cost_preds_batch).to(**self.tpdv)
-        cost_return_batch = check(cost_return_batch).to(**self.tpdv)
+        cost_returns_batch = check(cost_returns_batch).to(**self.tpdv)
         cost_adv_targ = check(cost_adv_targ).to(**self.tpdv)
 
         # 计算价值损失
@@ -118,11 +121,12 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
                                                                                            actions_batch, 
                                                                                            masks_batch,
                                                                                            available_actions_batch,
-                                                                                           active_masks_batch)
+                                                                                           active_masks_batch,
+                                                                                           rnn_states_cost_batch)
 
         # 价值函数损失
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
-        cost_value_loss = self.cal_cost_value_loss(cost_values, cost_preds_batch, cost_return_batch, active_masks_batch)
+        cost_value_loss = self.cal_cost_value_loss(cost_values, cost_preds_batch, cost_returns_batch, active_masks_batch)
 
         # 策略损失（仅在update_actor=True时计算）
         policy_loss = 0
