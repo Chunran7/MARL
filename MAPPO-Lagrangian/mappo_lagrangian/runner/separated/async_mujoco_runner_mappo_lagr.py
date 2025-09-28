@@ -228,6 +228,13 @@ class AsyncMujocoRunner(AsyncRunner):
                 if self.use_wandb:
                     wandb.log({agent_k: v}, step=total_num_steps)
                 else:
+                    # 确保v是数值类型，避免workspace错误
+                    if isinstance(v, (list, np.ndarray)):
+                        v = float(np.mean(v))
+                    elif isinstance(v, str):
+                        continue
+                    else:
+                        v = float(v)
                     self.writter.add_scalar(agent_k, v, total_num_steps)
 
     @torch.no_grad()
@@ -295,6 +302,14 @@ class AsyncMujocoRunner(AsyncRunner):
                 if self.use_wandb:
                     wandb.log({k: v}, step=total_num_steps)
                 else:
+                    # 确保v是数值类型，避免workspace错误
+                    if isinstance(v, (list, np.ndarray)):
+                        v = float(np.mean(v))
+                    elif isinstance(v, str):
+                        # 如果是字符串，跳过记录或转换为数值
+                        continue
+                    else:
+                        v = float(v)
                     self.writter.add_scalar(k, v, total_num_steps)
         else:
             # 列表的情况（原始逻辑）
@@ -304,4 +319,11 @@ class AsyncMujocoRunner(AsyncRunner):
                     if self.use_wandb:
                         wandb.log({agent_k: v}, step=total_num_steps)
                     else:
+                        # 确保v是数值类型
+                        if isinstance(v, (list, np.ndarray)):
+                            v = float(np.mean(v))
+                        elif isinstance(v, str):
+                            continue
+                        else:
+                            v = float(v)
                         self.writter.add_scalar(agent_k, v, total_num_steps)
