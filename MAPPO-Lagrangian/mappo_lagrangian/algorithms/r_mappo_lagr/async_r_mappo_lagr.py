@@ -164,8 +164,11 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         else:
             loss = self.value_loss_coef * value_loss + self.cost_value_loss_coef * cost_value_loss
 
-        # 反向传播
-        self.policy.optimizer.zero_grad()
+        # 反向传播 - 分别处理不同的优化器
+        if update_actor:
+            self.policy.actor_optimizer.zero_grad()
+        self.policy.critic_optimizer.zero_grad()
+        self.policy.cost_optimizer.zero_grad()
 
         if update_actor:
             (loss - self.entropy_coef * dist_entropy.mean()).backward()
@@ -175,11 +178,16 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
             critic_grad_norm = nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
+            cost_grad_norm = nn.utils.clip_grad_norm_(self.policy.cost_critic.parameters(), self.max_grad_norm)
         else:
             actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
+            cost_grad_norm = get_gard_norm(self.policy.cost_critic.parameters())
 
-        self.policy.optimizer.step()
+        if update_actor:
+            self.policy.actor_optimizer.step()
+        self.policy.critic_optimizer.step()
+        self.policy.cost_optimizer.step()
 
         # 记录梯度信息用于重要性计算
         if update_actor:
