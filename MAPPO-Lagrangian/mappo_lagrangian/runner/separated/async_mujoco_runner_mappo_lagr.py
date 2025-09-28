@@ -218,7 +218,8 @@ class AsyncMujocoRunner(AsyncRunner):
                                          rnn_states_critic[:, agent_id], actions[:, agent_id],
                                          action_log_probs[:, agent_id],
                                          values[:, agent_id], rewards[:, agent_id], masks[:, agent_id], bad_masks[:, agent_id],
-                                         active_masks[:, agent_id], costs[:, agent_id], cost_preds[:, agent_id], rnn_states_cost[:, agent_id])
+                                         active_masks[:, agent_id], None, costs[:, agent_id], 
+                                         cost_preds[:, agent_id], rnn_states_cost[:, agent_id])
 
     def log_train(self, train_infos, total_num_steps):
         for agent_id in range(self.num_agents):
