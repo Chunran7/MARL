@@ -9,7 +9,7 @@ seed_max=1
 seed_=50
 
 # 异步训练设置 (可以修改这里来切换异步模式)
-use_async=true                    # 是否使用异步训练 (true/false)
+use_async=false                    # 是否使用异步训练 (true/false)
 async_mode="hierarchical"         # 异步策略: hierarchical/importance/progressive
 selection_ratio=0.5               # 智能体选择比例 (0.1-1.0)
 
