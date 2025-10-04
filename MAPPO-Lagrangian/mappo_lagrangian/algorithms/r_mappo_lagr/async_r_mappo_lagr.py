@@ -195,21 +195,29 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
     
     def train(self, buffer, update_actor=True):
         """
-        训练函数，支持选择性更新
+        异步训练函数，支持选择性更新
+        Args:
+            buffer: 经验缓冲区
+            update_actor: 是否更新策略网络（支持异步训练中的选择性更新）
         """
         if self._use_popart or self._use_valuenorm:
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(buffer.value_preds[:-1])
-            cost_advantages = buffer.cost_returns[:-1] - self.cost_value_normalizer.denormalize(buffer.cost_preds[:-1])
         else:
             advantages = buffer.returns[:-1] - buffer.value_preds[:-1]
+        
+        # 计算成本优势（MAPPO-Lagrangian的核心）
+        if hasattr(buffer, 'cost_returns') and hasattr(buffer, 'cost_preds'):
             cost_advantages = buffer.cost_returns[:-1] - buffer.cost_preds[:-1]
-
+        else:
+            cost_advantages = np.zeros_like(advantages)
+        
         advantages_copy = advantages.copy()
         advantages_copy[buffer.active_masks[:-1] == 0.0] = np.nan
         mean_advantages = np.nanmean(advantages_copy)
         std_advantages = np.nanstd(advantages_copy)
         advantages = (advantages - mean_advantages) / (std_advantages + 1e-5)
-
+        
+        # 成本优势标准化
         cost_advantages_copy = cost_advantages.copy()
         cost_advantages_copy[buffer.active_masks[:-1] == 0.0] = np.nan
         mean_cost_advantages = np.nanmean(cost_advantages_copy)
@@ -217,38 +225,46 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         cost_advantages = (cost_advantages - mean_cost_advantages) / (std_cost_advantages + 1e-5)
 
         train_info = {}
-
         train_info['value_loss'] = 0
         train_info['policy_loss'] = 0
         train_info['dist_entropy'] = 0
         train_info['actor_grad_norm'] = 0
         train_info['critic_grad_norm'] = 0
+        train_info['cost_loss'] = 0
+        train_info['cost_grad_norm'] = 0
         train_info['ratio'] = 0
+        train_info['importance_weight'] = 0
 
-        # 根据是否更新策略调整训练轮数
-        num_updates = self.ppo_epoch if update_actor else max(1, self.ppo_epoch // 3)
+        # 根据是否更新策略调整PPO轮数
+        if update_actor:
+            ppo_epoch = self.ppo_epoch
+        else:
+            ppo_epoch = max(1, self.ppo_epoch // 2)  # 仅更新价值函数时减少轮数
 
-        for _ in range(num_updates):
+        for _ in range(ppo_epoch):
             if self._use_recurrent_policy:
-                data_generator = buffer.recurrent_generator(advantages, self.num_mini_batch, self.data_chunk_length, cost_advantages)
+                data_generator = buffer.recurrent_generator(advantages, self.num_mini_batch, self.data_chunk_length)
             elif self._use_naive_recurrent:
-                data_generator = buffer.naive_recurrent_generator(advantages, self.num_mini_batch, cost_advantages)
+                data_generator = buffer.naive_recurrent_generator(advantages, self.num_mini_batch)
             else:
-                data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch, cost_adv=cost_advantages)
+                data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
 
             for sample in data_generator:
-                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
-                    = self.ppo_update(sample, update_actor)
+                # 执行PPO更新，传递update_actor参数
+                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, cost_loss, cost_grad_norm = \
+                    self.ppo_update(sample, update_actor, cost_advantages)
 
                 train_info['value_loss'] += value_loss.item()
-                train_info['policy_loss'] += policy_loss.item() if isinstance(policy_loss, torch.Tensor) else policy_loss
-                train_info['dist_entropy'] += dist_entropy.item()
-                train_info['actor_grad_norm'] += actor_grad_norm.item() if hasattr(actor_grad_norm, 'item') else actor_grad_norm
-                train_info['critic_grad_norm'] += critic_grad_norm.item()
-                train_info['ratio'] += imp_weights.mean().item()
+                train_info['policy_loss'] += policy_loss.item() if policy_loss is not None else 0
+                train_info['dist_entropy'] += dist_entropy.item() if dist_entropy is not None else 0
+                train_info['actor_grad_norm'] += actor_grad_norm if actor_grad_norm is not None else 0
+                train_info['critic_grad_norm'] += critic_grad_norm
+                train_info['cost_loss'] += cost_loss.item() if cost_loss is not None else 0
+                train_info['cost_grad_norm'] += cost_grad_norm if cost_grad_norm is not None else 0
+                train_info['ratio'] += imp_weights.mean().item() if imp_weights is not None else 1.0
+                train_info['importance_weight'] += imp_weights.mean().item() if imp_weights is not None else 1.0
 
-        num_updates = num_updates * self.num_mini_batch
-
+        num_updates = self.ppo_epoch * self.num_mini_batch
         for k in train_info.keys():
             train_info[k] /= num_updates
  
