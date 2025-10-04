@@ -30,6 +30,14 @@ class R_MAPPO_Lagr:
                  _backtrack_ratio=0.8, _max_backtracks=15, _constraint_name_1="trust_region",
                  _constraint_name_2="safety_region", linesearch_infeasible_recovery=True, accept_violation=False,
                  device=torch.device("cpu")):
+        """
+        初始化MAPPO-Lagrangian算法
+        
+        ========== 算法3 MAPPO-Lagrangian 初始化参数 ==========
+        - lagrangian_coef: 拉格朗日乘子学习率 α_λ
+        - lamda_lagr: 初始拉格朗日乘子 λ_0
+        - safety_bound: 安全约束阈值 d
+        """
         self.args = args
         self.device = device
         self.tpdv = dict(dtype=torch.float32, device=device)
@@ -69,9 +77,10 @@ class R_MAPPO_Lagr:
         self._linesearch_infeasible_recovery = linesearch_infeasible_recovery
         self._accept_violation = accept_violation
 
-        self.lagrangian_coef = args.lagrangian_coef_rate # lagrangian_coef
-        self.lamda_lagr = args.lamda_lagr # 0.78
-        self.safety_bound = args.safety_bound # 0.2 Ant
+        # ========== 算法3 MAPPO-Lagrangian 关键参数 ==========
+        self.lagrangian_coef = args.lagrangian_coef_rate # 拉格朗日乘子学习率 α_λ
+        self.lamda_lagr = args.lamda_lagr # 初始拉格朗日乘子 λ_0 (默认0.78)
+        self.safety_bound = args.safety_bound # 安全约束阈值 d (默认0.2 for Ant)
 
 
 
@@ -229,6 +238,8 @@ class R_MAPPO_Lagr:
         cost_preds_batch = check(cost_preds_batch).to(**self.tpdv)
 
         # Reshape to do in a single forward pass for all steps
+        # ========== 算法3 MAPPO-Lagrangian 步骤5: 策略评估 ==========
+        # 评估当前策略在给定状态-动作对上的表现，获取价值函数、动作概率、熵和成本价值
         values, action_log_probs, dist_entropy, cost_values = self.policy.evaluate_actions(share_obs_batch,
                                                                                            obs_batch,
                                                                                            rnn_states_batch,
@@ -239,14 +250,23 @@ class R_MAPPO_Lagr:
                                                                                            active_masks_batch,
                                                                                            rnn_states_cost_batch)
 
+        # ========== 算法3 MAPPO-Lagrangian 步骤6: 计算混合优势函数 ==========
+        # 计算拉格朗日混合优势函数: A_hybrid = A^R - λ * A^C
         # todo: lagrangian coef
         adv_targ_hybrid =  adv_targ - self.lamda_lagr*cost_adv_targ
 
+        # ========== 算法3 MAPPO-Lagrangian 步骤7: 计算重要性权重 ==========
+        # 计算重要性采样权重: r_t(θ) = π_θ(a_t|s_t) / π_θ_old(a_t|s_t)
         # todo: lagrangian actor update step
         # actor update
         imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
 
+        # ========== 算法3 MAPPO-Lagrangian 步骤8: 计算PPO裁剪目标函数 ==========
+        # 计算PPO裁剪目标函数，使用混合优势函数
+        # L^CLIP(θ) = min(r_t(θ) * A_hybrid, clip(r_t(θ), 1-ε, 1+ε) * A_hybrid)
         surr1 = imp_weights * adv_targ_hybrid
+
+        
         surr2 = torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ_hybrid
 
         if self._use_policy_active_masks:
@@ -260,6 +280,8 @@ class R_MAPPO_Lagr:
 
         self.policy.actor_optimizer.zero_grad()
 
+        # ========== 算法3 MAPPO-Lagrangian 步骤9: 策略网络参数更新 ==========
+        # 更新策略网络参数，包含熵正则化项
         if update_actor:
             (policy_loss - dist_entropy * self.entropy_coef).backward()
 
@@ -270,6 +292,10 @@ class R_MAPPO_Lagr:
 
         self.policy.actor_optimizer.step()
 
+        # ========== 算法3 MAPPO-Lagrangian 步骤10: 拉格朗日乘子更新 ==========
+        # 更新拉格朗日乘子 λ，基于约束违反程度和成本优势
+        # Δλ = -((J^C - d) * (1-γ) + r_t(θ) * A^C)
+        # λ_{k+1} = max(0, λ_k - α_λ * Δλ)
         # todo: update lamda_lagr
         delta_lamda_lagr = -(( aver_episode_costs.mean() - self.safety_bound) * (1 - self.gamma) + (imp_weights * cost_adv_targ)).mean().detach()
 
@@ -278,6 +304,8 @@ class R_MAPPO_Lagr:
 
         self.lamda_lagr = new_lamda_lagr
 
+        # ========== 算法3 MAPPO-Lagrangian 步骤11: 奖励价值函数更新 ==========
+        # 更新奖励价值函数 V^R(s)
         # todo: reward critic update
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
         self.policy.critic_optimizer.zero_grad()
@@ -288,6 +316,8 @@ class R_MAPPO_Lagr:
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
         self.policy.critic_optimizer.step()
 
+        # ========== 算法3 MAPPO-Lagrangian 步骤12: 成本价值函数更新 ==========
+        # 更新成本价值函数 V^C(s)
         # todo: cost critic update
         cost_loss = self.cal_value_loss(cost_values, cost_preds_batch, cost_returns_barch, active_masks_batch)
         self.policy.cost_optimizer.zero_grad()
@@ -308,6 +338,8 @@ class R_MAPPO_Lagr:
 
         :return train_info: (dict) contains information regarding training update (e.g. loss, grad norms, etc).
         """
+        # ========== 算法3 MAPPO-Lagrangian 步骤1: 计算奖励优势函数 ==========
+        # 计算奖励优势函数 A^R_t = R_t - V^R(s_t)
         if self._use_popart:
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(buffer.value_preds[:-1])
         else:
@@ -318,6 +350,10 @@ class R_MAPPO_Lagr:
         std_advantages = np.nanstd(advantages_copy)
         advantages = (advantages - mean_advantages) / (std_advantages + 1e-5)
 
+        #这里得到了优势函数advantages（算法第7行）
+
+        # ========== 算法3 MAPPO-Lagrangian 步骤2: 计算成本优势函数 ==========
+        # 计算成本优势函数 A^C_t = C_t - V^C(s_t)
         if self._use_popart:
             cost_adv = buffer.cost_returns[:-1] - self.value_normalizer.denormalize(buffer.cost_preds[:-1])
         else:
@@ -327,6 +363,8 @@ class R_MAPPO_Lagr:
         mean_cost_adv = np.nanmean(cost_adv_copy)
         std_cost_adv = np.nanstd(cost_adv_copy)
         cost_adv = (cost_adv - mean_cost_adv) / (std_cost_adv + 1e-5)
+
+        #这里得到了成本优势函数cost_adv（算法第8行）
 
         train_info = {}
 
@@ -338,13 +376,18 @@ class R_MAPPO_Lagr:
         train_info['ratio'] = 0
         train_info['cost_grad_norm'] = 0
         train_info['cost_loss'] = 0
+        #定义一个字典，记录训练信息
         
+        # ========== 算法3 MAPPO-Lagrangian 步骤3: 多轮策略更新 ==========
+        # 对于每个epoch，执行多次mini-batch更新
         for _ in range(self.ppo_epoch):
             if self._use_naive_recurrent:
                 data_generator = buffer.naive_recurrent_generator(advantages, self.num_mini_batch, cost_adv)
             else:
                 data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch, cost_adv=cost_adv)
 
+            # ========== 算法3 MAPPO-Lagrangian 步骤4: Mini-batch更新 ==========
+            # 对于每个mini-batch，执行策略和价值函数更新
             for sample in data_generator:
 
                 value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, cost_loss, cost_grad_norm \

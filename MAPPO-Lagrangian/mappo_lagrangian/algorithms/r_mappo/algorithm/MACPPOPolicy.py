@@ -112,6 +112,14 @@ class MACPPOPolicy:
                          available_actions=None, active_masks=None, rnn_states_cost=None):
         """
         Get action logprobs / entropy and value function predictions for actor update.
+        
+        ========== 算法3 MAPPO-Lagrangian 策略评估 ==========
+        此方法对应算法3步骤5：策略评估
+        - 计算给定动作的对数概率 log π_θ(a_t|s_t)
+        - 计算策略熵 H(π_θ(·|s_t))
+        - 计算奖励价值函数 V^R(s_t)
+        - 计算成本价值函数 V^C(s_t)
+        
         :param cent_obs (np.ndarray): centralized input to the critic.
         :param obs (np.ndarray): local agent inputs to the actor.
         :param rnn_states_actor: (np.ndarray) if actor is RNN, RNN states for actor.
@@ -126,6 +134,7 @@ class MACPPOPolicy:
         :return action_log_probs: (torch.Tensor) log probabilities of the input actions.
         :return dist_entropy: (torch.Tensor) action distribution entropy for the given inputs.
         """
+        # 计算动作对数概率和策略熵
         action_log_probs, dist_entropy = self.actor.evaluate_actions(obs,
                                                                      rnn_states_actor,
                                                                      action,
@@ -133,10 +142,12 @@ class MACPPOPolicy:
                                                                      available_actions,
                                                                      active_masks)
 
+        # 计算奖励价值函数 V^R(s_t)
         values, _ = self.critic(cent_obs, rnn_states_critic, masks)
         if rnn_states_cost is None:
             return values, action_log_probs, dist_entropy
         else:
+            # 计算成本价值函数 V^C(s_t)
             cost_values, _ = self.cost_critic(cent_obs, rnn_states_cost, masks)
             return values, action_log_probs, dist_entropy, cost_values
 

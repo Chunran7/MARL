@@ -291,14 +291,27 @@ class AsyncRunner(Runner):
     
     def train(self):
         """
-        主训练函数，根据配置选择异步策略
+        ========== 算法3 MAPPO-Lagrangian 异步训练策略选择 ==========
+        主训练函数，根据配置选择不同的异步策略来优化训练效率
+        
+        异步策略说明：
+        - hierarchical: 分层异步更新，将智能体分组进行异步训练
+        - importance: 基于重要性采样的异步更新，优先训练重要智能体
+        - progressive: 渐进式异步更新，随训练进程动态调整异步比例
         """
         if self.async_mode == 'hierarchical':
+            # ========== 算法3 异步策略1: 分层异步训练 ==========
+            # 将智能体分为不同层级，组内同步更新，组间异步更新
             return self.hierarchical_async_train()
         elif self.async_mode == 'importance':
+            # ========== 算法3 异步策略2: 重要性采样异步训练 ==========
+            # 基于智能体重要性分数进行采样，优先更新关键智能体
             return self.importance_sampling_async_train()
         elif self.async_mode == 'progressive':
+            # ========== 算法3 异步策略3: 渐进式异步训练 ==========
+            # 随训练进程动态调整异步比例，平衡效率与性能
             return self.progressive_async_train()
         else:
-            # 回退到原始同步训练
+            # ========== 算法3 回退策略: 同步训练 ==========
+            # 当异步模式未指定或不支持时，回退到原始同步训练
             return super().train()

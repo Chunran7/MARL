@@ -124,34 +124,66 @@ class Runner(object):
 
     @torch.no_grad()
     def compute(self):
+        # ========== 算法3 MAPPO-Lagrangian 回报和优势函数计算 ==========
+        # 为每个智能体计算奖励回报和成本回报，用于后续的优势函数计算
+        
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
+            
+            # ========== 算法3 步骤: 计算下一状态的奖励价值函数 V^R(s_{t+1}) ==========
+            # 使用critic网络预测下一状态的奖励价值，用于计算奖励回报
             next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
                                                                   self.buffer[agent_id].rnn_states_critic[-1],
                                                                   self.buffer[agent_id].masks[-1])
             next_value = _t2n(next_value)
+            
+            # ========== 算法3 步骤: 计算奖励回报 R_t ==========
+            # 使用GAE (Generalized Advantage Estimation) 计算奖励回报
+            # R_t = r_t + γ * R_{t+1}
             self.buffer[agent_id].compute_returns(next_value, self.trainer[agent_id].value_normalizer)
 
+            # ========== 算法3 步骤: 计算下一状态的成本价值函数 V^C(s_{t+1}) ==========
+            # 使用cost critic网络预测下一状态的成本价值，用于计算成本回报
             next_costs = self.trainer[agent_id].policy.get_cost_values(self.buffer[agent_id].share_obs[-1],
                                                                        self.buffer[agent_id].rnn_states_cost[-1],
                                                                        self.buffer[agent_id].masks[-1])
             next_costs = _t2n(next_costs)
+            
+            # ========== 算法3 步骤: 计算成本回报 C_t ==========
+            # 使用GAE计算成本回报，用于约束优化
+            # C_t = c_t + γ * C_{t+1}
             self.buffer[agent_id].compute_cost_returns(next_costs, self.trainer[agent_id].value_normalizer)
 
     def train(self):
+        # ========== 算法3 MAPPO-Lagrangian 多智能体训练循环 ==========
+        # 对所有智能体进行策略更新，使用随机顺序以减少偏差
+        
         # have modified for SAD_PPO
         train_infos = []
         cost_train_infos = []
         # random update order
         action_dim = self.buffer[0].actions.shape[-1]
+        
+        # ========== 算法3 步骤: 初始化重要性采样因子 ==========
+        # 初始化因子矩阵，用于多智能体重要性采样权重计算
         factor = np.ones((self.episode_length, self.n_rollout_threads, action_dim), dtype=np.float32)
+        
+        # ========== 算法3 步骤: 随机智能体更新顺序 ==========
+        # 使用随机排列避免智能体更新顺序的偏差（算法第9步）
         for agent_id in torch.randperm(self.num_agents):
             self.trainer[agent_id].prep_training()
+            
+            # ========== 算法3 步骤: 更新重要性采样因子 ==========
+            # 将当前因子传递给buffer，用于重要性采样权重计算
             self.buffer[agent_id].update_factor(factor)
+            
             available_actions = None if self.buffer[agent_id].available_actions is None \
                 else self.buffer[agent_id].available_actions[:-1].reshape(-1, *self.buffer[
                                                                                    agent_id].available_actions.shape[
                                                                                2:])
+            
+            # ========== 算法3 步骤: 计算旧策略的动作对数概率 ==========
+            # 计算当前策略下动作的对数概率，用于重要性采样权重计算
             old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
                 self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
                 self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
@@ -163,8 +195,12 @@ class Runner(object):
             # safe_buffer, cost_adv = self.buffer_filter(agent_id)
             # train_info = self.trainer[agent_id].train(safe_buffer, cost_adv)
 
+            # ========== 算法3 步骤: 执行单个智能体的策略更新 ==========
+            # 调用MAPPO-Lagrangian算法的train方法进行策略更新
             train_info = self.trainer[agent_id].train(self.buffer[agent_id])
 
+            # ========== 算法3 步骤: 计算新策略的动作对数概率 ==========
+            # 计算更新后策略下动作的对数概率
             new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
                 self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
                 self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
@@ -172,11 +208,17 @@ class Runner(object):
                 self.buffer[agent_id].masks[:-1].reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
                 available_actions,
                 self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
+            
+            # ========== 算法3 步骤: 更新多智能体重要性采样因子 ==========
+            # 根据策略变化更新因子，用于后续智能体的重要性采样
+            # factor = factor * exp(log π_new - log π_old)
             factor = factor * _t2n(torch.exp(new_actions_logprob - old_actions_logprob).reshape(self.episode_length,
                                                                                                 self.n_rollout_threads,
                                                                                                 action_dim))
             train_infos.append(train_info)
 
+            # ========== 算法3 步骤: 清理buffer状态 ==========
+            # 更新完成后清理buffer，为下一轮训练做准备
             self.buffer[agent_id].after_update()
 
         return train_infos, cost_train_infos
