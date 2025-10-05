@@ -136,14 +136,13 @@ class AsyncMujocoRunner(AsyncRunner):
 
     @torch.no_grad()
     def collect(self, step):
-        values = []
-        actions = []
-        temp_actions_env = []
-        action_log_probs = []
-        rnn_states = []
-        rnn_states_critic = []
-        cost_preds = []
-        rnn_states_cost = []
+        value_collector = []
+        action_collector = []
+        action_log_prob_collector = []
+        rnn_state_collector = []
+        rnn_state_critic_collector = []
+        cost_preds_collector = []
+        rnn_states_cost_collector = []
 
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
@@ -154,31 +153,21 @@ class AsyncMujocoRunner(AsyncRunner):
                                                             self.buffer[agent_id].rnn_states_critic[step],
                                                             self.buffer[agent_id].masks[step],
                                                             rnn_states_cost=self.buffer[agent_id].rnn_states_cost[step])
-            values.append(_t2n(value))
-            action = _t2n(action)
-            actions.append(action)
-            temp_actions_env.append(action[0])
-            action_log_probs.append(_t2n(action_log_prob))
-            rnn_states.append(_t2n(rnn_state))
-            rnn_states_critic.append(_t2n(rnn_state_critic))
-            cost_preds.append(_t2n(cost_pred))
-            rnn_states_cost.append(_t2n(rnn_state_cost))
-
-        # [agents, envs, dim]
-        actions_env = []
-        for i in range(self.n_rollout_threads):
-            one_hot_action_env = []
-            for temp_action_env in temp_actions_env:
-                one_hot_action_env.append(temp_action_env[i])
-            actions_env.append(one_hot_action_env)
-
-        values = np.array(values).transpose(1, 0, 2)
-        actions = np.array(actions).transpose(1, 0, 2)
-        action_log_probs = np.array(action_log_probs).transpose(1, 0, 2)
-        rnn_states = np.array(rnn_states).transpose(1, 0, 2, 3)
-        rnn_states_critic = np.array(rnn_states_critic).transpose(1, 0, 2, 3)
-        cost_preds = np.array(cost_preds).transpose(1, 0, 2)
-        rnn_states_cost = np.array(rnn_states_cost).transpose(1, 0, 2, 3)
+            value_collector.append(_t2n(value))
+            action_collector.append(_t2n(action))
+            action_log_prob_collector.append(_t2n(action_log_prob))
+            rnn_state_collector.append(_t2n(rnn_state))
+            rnn_state_critic_collector.append(_t2n(rnn_state_critic))
+            cost_preds_collector.append(_t2n(cost_pred))
+            rnn_states_cost_collector.append(_t2n(rnn_state_cost))
+        # [self.envs, agents, dim]
+        values = np.array(value_collector).transpose(1, 0, 2)
+        actions = np.array(action_collector).transpose(1, 0, 2)
+        action_log_probs = np.array(action_log_prob_collector).transpose(1, 0, 2)
+        rnn_states = np.array(rnn_state_collector).transpose(1, 0, 2, 3)
+        rnn_states_critic = np.array(rnn_state_critic_collector).transpose(1, 0, 2, 3)
+        cost_preds = np.array(cost_preds_collector).transpose(1, 0, 2)
+        rnn_states_cost = np.array(rnn_states_cost_collector).transpose(1, 0, 2, 3)
 
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, cost_preds, rnn_states_cost
 
