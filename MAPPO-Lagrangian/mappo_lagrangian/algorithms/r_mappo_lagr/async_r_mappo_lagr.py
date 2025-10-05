@@ -126,7 +126,8 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
                                                                                            actions_batch, 
                                                                                            masks_batch,
                                                                                            available_actions_batch,
-                                                                                           active_masks_batch)
+                                                                                           active_masks_batch,
+                                                                                           rnn_states_cost_batch)
 
         # 价值函数损失
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
