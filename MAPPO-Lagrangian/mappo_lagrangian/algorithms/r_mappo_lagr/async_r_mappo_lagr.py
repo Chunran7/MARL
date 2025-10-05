@@ -258,7 +258,7 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
             for sample in data_generator:
                 # 执行PPO更新，传递update_actor参数
                 value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, cost_loss, cost_grad_norm = \
-                    self.ppo_update(sample, update_actor, cost_advantages)
+                    self.ppo_update(sample, update_actor)
 
                 train_info['value_loss'] += value_loss.item()
                 train_info['policy_loss'] += policy_loss.item() if policy_loss is not None else 0
