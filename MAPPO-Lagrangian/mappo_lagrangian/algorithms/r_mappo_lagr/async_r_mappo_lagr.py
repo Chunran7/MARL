@@ -172,7 +172,7 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
             loss = self.value_loss_coef * value_loss + self.cost_value_loss_coef * cost_value_loss
 
         # 反向传播
-        self.policy.optimizer.zero_grad()
+        self.policy.actor_optimizer.zero_grad()
 
         if update_actor:
             (loss - self.entropy_coef * dist_entropy.mean()).backward()
@@ -186,7 +186,7 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
             actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
 
-        self.policy.optimizer.step()
+        self.policy.actor_optimizer.step()
 
         # 记录梯度信息用于重要性计算
         if update_actor:
