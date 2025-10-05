@@ -182,9 +182,11 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
             critic_grad_norm = nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
+            cost_grad_norm = nn.utils.clip_grad_norm_(self.policy.cost_critic.parameters(), self.max_grad_norm)
         else:
             actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
+            cost_grad_norm = get_gard_norm(self.policy.cost_critic.parameters())
 
         self.policy.actor_optimizer.step()
 
@@ -192,7 +194,7 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         if update_actor:
             self.record_gradient_info(actor_grad_norm.item() if hasattr(actor_grad_norm, 'item') else actor_grad_norm)
 
-        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
+        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, cost_value_loss, cost_grad_norm
     
     def record_gradient_info(self, grad_norm):
         """
