@@ -20,6 +20,9 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         self.async_update_ratio = getattr(args, 'async_update_ratio', 0.7)
         self.value_update_freq = getattr(args, 'value_update_freq', 2)
         
+        # 成本价值损失系数（与同步代码保持一致）
+        self.cost_value_loss_coef = getattr(args, 'cost_value_loss_coef', self.value_loss_coef)
+        
         # 用于跟踪梯度信息
         self.gradient_history = []
         self.max_gradient_history = 100
