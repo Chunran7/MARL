@@ -112,7 +112,11 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
         cost_preds_batch = check(cost_preds_batch).to(**self.tpdv)
         cost_return_batch = check(cost_return_batch).to(**self.tpdv)
-        cost_adv_targ = check(cost_adv_targ).to(**self.tpdv)
+        # 处理cost_adv_targ为None的情况
+        if cost_adv_targ is not None:
+            cost_adv_targ = check(cost_adv_targ).to(**self.tpdv)
+        else:
+            cost_adv_targ = None
 
         # 计算价值损失
         values, action_log_probs, dist_entropy, cost_values = self.policy.evaluate_actions(share_obs_batch,
@@ -131,12 +135,18 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         # 策略损失（仅在update_actor=True时计算）
         policy_loss = 0
         if update_actor:
+            # 计算混合优势函数（拉格朗日方法）
+            if cost_adv_targ is not None:
+                adv_targ_hybrid = adv_targ - self.lamda_lagr * cost_adv_targ
+            else:
+                adv_targ_hybrid = adv_targ
+            
             # 重要性采样比率
             imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
 
             # 策略梯度损失
-            surr1 = imp_weights * adv_targ
-            surr2 = torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
+            surr1 = imp_weights * adv_targ_hybrid
+            surr2 = torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ_hybrid
 
             if self._use_policy_active_masks:
                 policy_action_loss = (-torch.sum(torch.min(surr1, surr2),
