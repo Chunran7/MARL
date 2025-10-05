@@ -268,19 +268,10 @@ class AsyncMujocoRunner(AsyncRunner):
         self.log_env(eval_train_infos, total_num_steps)
 
     def log_env(self, env_infos, total_num_steps):
-        if isinstance(env_infos, dict):
-            # 单个字典的情况
-            for k, v in env_infos.items():
+        for agent_id in range(self.num_agents):
+            for k, v in env_infos[agent_id].items():
+                agent_k = "agent%i/" % agent_id + k
                 if self.use_wandb:
-                    wandb.log({k: v}, step=total_num_steps)
+                    wandb.log({agent_k: v}, step=total_num_steps)
                 else:
-                    self.writter.add_scalars(k, {k: v}, total_num_steps)
-        else:
-            # 列表的情况（原始逻辑）
-            for agent_id in range(self.num_agents):
-                for k, v in env_infos[agent_id].items():
-                    agent_k = "agent%i/" % agent_id + k
-                    if self.use_wandb:
-                        wandb.log({agent_k: v}, step=total_num_steps)
-                    else:
-                        self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)
+                    self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)
