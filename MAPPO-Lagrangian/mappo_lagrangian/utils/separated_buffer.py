@@ -303,7 +303,7 @@ class SeparatedReplayBuffer(object):
             if self.factor is None:
                 yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch
             else:
-                if self.algo == "mappo_lagr":
+                if self.algo in ["mappo_lagr", "async_mappo_lagr"]:
                     factor_batch = factor[indices]
                     yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch, factor_batch, cost_preds_batch, cost_return_batch, rnn_states_cost_batch, cost_adv_targ, aver_episode_costs
                 else:
@@ -377,6 +377,7 @@ class SeparatedReplayBuffer(object):
             active_masks_batch = np.stack(active_masks_batch, 1)
             old_action_log_probs_batch = np.stack(old_action_log_probs_batch, 1)
             adv_targ = np.stack(adv_targ, 1)
+            aver_episode_costs = self.aver_episode_costs
             if cost_adv is not None:
                 cost_adv_targ = np.stack(cost_adv_targ, 1)
 
@@ -406,8 +407,8 @@ class SeparatedReplayBuffer(object):
             if cost_adv is not None:
                 cost_adv_targ = _flatten(T, N, cost_adv_targ)
             if self.factor is not None:
-                if self.algo == "mappo_lagr":
-                    yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch, factor_batch, cost_preds_batch, cost_return_batch, rnn_states_cost_batch, cost_adv_targ  # 17 value
+                if self.algo in ["mappo_lagr", "async_mappo_lagr"]:
+                    yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch, factor_batch, cost_preds_batch, cost_return_batch, rnn_states_cost_batch, cost_adv_targ, aver_episode_costs  # 18 value
                 else:
                     yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch, factor_batch  # value
             else:
