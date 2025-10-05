@@ -260,12 +260,22 @@ class MujocoRunner(Runner):
                 if eval_dones_env[eval_i]:
                     eval_episode += 1
                     eval_episode_rewards[eval_i].append(np.sum(one_episode_rewards[eval_i], axis=0))
+                    eval_episode_costs[eval_i].append(np.sum(one_episode_costs[eval_i], axis=0))
                     one_episode_rewards[eval_i] = []
+                    one_episode_costs[eval_i] = []
 
             if eval_episode >= self.all_args.eval_episodes:
                 eval_episode_rewards = np.concatenate(eval_episode_rewards)
-                eval_env_infos = {'eval_average_episode_rewards': eval_episode_rewards,
-                                  'eval_max_episode_rewards': [np.max(eval_episode_rewards)]}
-                self.log_env(eval_env_infos, total_num_steps)
-                print("eval_average_episode_rewards is {}.".format(np.mean(eval_episode_rewards)))
+                eval_episode_costs = np.concatenate(eval_episode_costs)
+                
+                eval_train_infos = []
+                for agent_id in range(self.num_agents):
+                    eval_average_episode_rewards = np.mean(eval_episode_rewards[:, agent_id])
+                    eval_average_episode_costs = np.mean(eval_episode_costs[:, agent_id])
+                    eval_train_infos.append({'eval_average_episode_rewards': eval_average_episode_rewards,
+                                             'eval_average_episode_costs': eval_average_episode_costs})
+                
+                self.log_env(eval_train_infos, total_num_steps)
+                print("eval_average_episode_rewards is {}, eval_average_episode_costs is {}.".format(
+                    np.mean(eval_episode_rewards), np.mean(eval_episode_costs)))
                 break

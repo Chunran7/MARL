@@ -73,7 +73,7 @@ class AsyncMujocoRunner(AsyncRunner):
             self.compute()
             
             # 使用异步训练方法
-            train_infos, cost_train_infos = self.train()
+            train_infos = self.train()
 
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
@@ -98,6 +98,7 @@ class AsyncMujocoRunner(AsyncRunner):
                 if len(done_episodes_rewards) > 0:
                     aver_episode_rewards = np.mean(done_episodes_rewards)
                     aver_episode_costs = np.mean(done_episodes_costs)
+                    self.return_aver_cost(aver_episode_costs)
                     print("some episodes done, average episode reward is {}, average episode cost is {}".format(
                         aver_episode_rewards, aver_episode_costs))
                     self.log_train(train_infos, total_num_steps)
@@ -119,7 +120,7 @@ class AsyncMujocoRunner(AsyncRunner):
 
     def return_aver_cost(self, aver_episode_costs):
         for agent_id in range(self.num_agents):
-            self.buffer[agent_id].return_aver_cost(aver_episode_costs)
+            self.buffer[agent_id].return_aver_insert(aver_episode_costs)
 
     def warmup(self):
         # reset env
@@ -179,7 +180,7 @@ class AsyncMujocoRunner(AsyncRunner):
         cost_preds = np.array(cost_preds).transpose(1, 0, 2)
         rnn_states_cost = np.array(rnn_states_cost).transpose(1, 0, 2, 3)
 
-        return values, actions_env, action_log_probs, rnn_states, rnn_states_critic, cost_preds, rnn_states_cost
+        return values, actions, action_log_probs, rnn_states, rnn_states_critic, cost_preds, rnn_states_cost
 
     def insert(self, data):
         obs, share_obs, rewards, costs, dones, infos, \
@@ -212,8 +213,10 @@ class AsyncMujocoRunner(AsyncRunner):
             self.buffer[agent_id].insert(share_obs[:, agent_id], obs[:, agent_id], rnn_states[:, agent_id],
                                          rnn_states_critic[:, agent_id], actions[:, agent_id],
                                          action_log_probs[:, agent_id],
-                                         values[:, agent_id], rewards[:, agent_id], masks[:, agent_id], bad_masks[:, agent_id],
-                                         active_masks[:, agent_id], costs[:, agent_id], cost_preds[:, agent_id], rnn_states_cost[:, agent_id])
+                                         values[:, agent_id], rewards[:, agent_id], masks[:, agent_id], None,
+                                         active_masks[:, agent_id], None, costs=costs[:, agent_id],
+                                         cost_preds=cost_preds[:, agent_id],
+                                         rnn_states_cost=rnn_states_cost[:, agent_id])
 
     def log_train(self, train_infos, total_num_steps):
         for agent_id in range(self.num_agents):

@@ -205,7 +205,7 @@ class AsyncRunner(Runner):
             group_train_infos = self.update_agent_group(agent_ids, group_id)
             train_infos.extend(group_train_infos)
             
-        return train_infos, cost_train_infos
+        return train_infos
     
     def importance_sampling_async_train(self):
         """
@@ -231,7 +231,7 @@ class AsyncRunner(Runner):
             # 仅更新价值函数，保持策略一致性
             self.lightweight_value_update(agent_id)
             
-        return train_infos, cost_train_infos
+        return train_infos
     
     def progressive_async_train(self):
         """
@@ -270,7 +270,7 @@ class AsyncRunner(Runner):
             other_train_infos = self.update_other_agents_async(other_agents)
             train_infos.extend(other_train_infos)
             
-        return train_infos, cost_train_infos
+        return train_infos
     
     def calculate_safety_violation_penalty(self):
         """
