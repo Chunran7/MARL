@@ -102,17 +102,10 @@ class AsyncMujocoRunner(AsyncRunner):
                     print("some episodes done, average episode reward is {}, average episode cost is {}".format(
                         aver_episode_rewards, aver_episode_costs))
                     self.log_train(train_infos, total_num_steps)
-                    self.log_env({"aver_episode_rewards": aver_episode_rewards}, total_num_steps)
-                    self.log_env({"aver_episode_costs": aver_episode_costs}, total_num_steps)
-                    
-                    # 记录异步训练特定的指标
-                    if hasattr(self, 'agent_importance_history') and len(self.agent_importance_history) > 0:
-                        avg_importance = np.mean(self.agent_importance_history[-1])
-                        self.log_env({"avg_agent_importance": avg_importance}, total_num_steps)
-                    
-                    # 记录异步模式信息
-                    self.log_env({"async_mode": self.async_mode}, total_num_steps)
-                    self.log_env({"async_ratio": self.async_ratio}, total_num_steps)
+                    self.writter.add_scalars("train_episode_rewards", {"aver_rewards": aver_episode_rewards},
+                                             total_num_steps)
+                    self.writter.add_scalars("train_episode_costs", {"aver_costs": aver_episode_costs},
+                                             total_num_steps)
 
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
