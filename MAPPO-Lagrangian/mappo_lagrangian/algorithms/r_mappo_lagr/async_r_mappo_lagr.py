@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from mappo_lagrangian.algorithms.r_mappo.r_mappo_lagr import R_MAPPO_Lagr
 from mappo_lagrangian.utils.util import get_gard_norm, huber_loss, mse_loss
-from mappo_lagrangian.utils.valuenorm import ValueNorm
+from mappo_lagrangian.utils.popart import PopArt
 from mappo_lagrangian.algorithms.utils.util import check
 
 
@@ -23,6 +23,12 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         # 用于跟踪梯度信息
         self.gradient_history = []
         self.max_gradient_history = 100
+        
+        # 初始化成本价值归一化器（如果需要的话）
+        if self._use_popart:
+            self.cost_value_normalizer = PopArt(1, device=self.device)
+        else:
+            self.cost_value_normalizer = None
         
     def cal_value_loss(self, values, value_preds_batch, return_batch, active_masks_batch):
         """

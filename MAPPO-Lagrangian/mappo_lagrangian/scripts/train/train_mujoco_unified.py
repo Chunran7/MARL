@@ -98,9 +98,9 @@ def parse_args(args, parser):
     if ASYNC_AVAILABLE:
         parser.add_argument("--use_async", action='store_true', default=False,
                            help="是否启用异步训练")
-        parser.add_argument("--async_mode", type=str, default='hierarchical', 
+        parser.add_argument("--async_mode", type=str, default='progressive', 
                            choices=['hierarchical', 'importance', 'progressive'],
-                           help="异步训练模式")
+                           help="异步训练模式：hierarchical(分层), importance(重要性采样), progressive(渐进式)")
         parser.add_argument("--async_ratio", type=float, default=0.7,
                            help="异步更新比例")
         parser.add_argument("--num_groups", type=int, default=4,

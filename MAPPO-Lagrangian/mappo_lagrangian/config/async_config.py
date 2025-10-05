@@ -112,6 +112,7 @@ IMPORTANCE_CONFIG.importance_window = 15
 
 PROGRESSIVE_CONFIG = AsyncConfig()
 PROGRESSIVE_CONFIG.async_mode = 'progressive'
+PROGRESSIVE_CONFIG.async_ratio = 0.7  # 设置为与默认值一致
 PROGRESSIVE_CONFIG.initial_sync_ratio = 1.0
 PROGRESSIVE_CONFIG.final_sync_ratio = 0.3
 PROGRESSIVE_CONFIG.sync_decay_episodes = 800
