@@ -37,9 +37,8 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param,
                                                                                     self.clip_param)
         if self._use_popart or self._use_valuenorm:
-            self.value_normalizer.update(return_batch)
-            error_clipped = self.value_normalizer.normalize(return_batch) - value_pred_clipped
-            error_original = self.value_normalizer.normalize(return_batch) - values
+            error_clipped = self.value_normalizer(return_batch) - value_pred_clipped
+            error_original = self.value_normalizer(return_batch) - values
         else:
             error_clipped = return_batch - value_pred_clipped
             error_original = return_batch - values
@@ -70,9 +69,8 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         cost_pred_clipped = cost_preds_batch + (cost_values - cost_preds_batch).clamp(-self.clip_param,
                                                                                       self.clip_param)
         if self._use_popart or self._use_valuenorm:
-            self.cost_value_normalizer.update(cost_return_batch)
-            cost_error_clipped = self.cost_value_normalizer.normalize(cost_return_batch) - cost_pred_clipped
-            cost_error_original = self.cost_value_normalizer.normalize(cost_return_batch) - cost_values
+            cost_error_clipped = self.cost_value_normalizer(cost_return_batch) - cost_pred_clipped
+            cost_error_original = self.cost_value_normalizer(cost_return_batch) - cost_values
         else:
             cost_error_clipped = cost_return_batch - cost_pred_clipped
             cost_error_original = cost_return_batch - cost_values
