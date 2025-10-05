@@ -145,16 +145,15 @@ def main(args):
     
     # 智能设置算法名称
     if hasattr(all_args, 'use_async') and all_args.use_async:
-        # 异步模式
-        if all_args.algorithm_name.strip() == '':
-            all_args.algorithm_name = "async_mappo_lagr"
+        # 异步模式 - 强制设置为异步算法
+        all_args.algorithm_name = "async_mappo_lagr"
         all_args = setup_async_config(all_args)
         print(f"使用异步训练模式: {all_args.async_mode}")
         print(f"异步比例: {all_args.async_ratio}")
         print("异步MAPPO-Lagrangian配置: ", all_args)
     else:
-        # 同步模式
-        if all_args.algorithm_name.strip() == '':
+        # 同步模式 - 确保使用同步算法
+        if all_args.algorithm_name.strip() == '' or all_args.algorithm_name == "async_mappo_lagr":
             all_args.algorithm_name = "mappo_lagr"
         print("标准MAPPO-Lagrangian配置: ", all_args)
 
