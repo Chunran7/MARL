@@ -254,11 +254,12 @@ class AsyncRunner(Runner):
     
     def progressive_async_train(self):
         """
-        改进的渐进式异步训练：契合MAPPO-Lagrangian Algorithm 3
+        改进的渐进式异步训练：基于论文理论的稳定版本
         关键改进：
-        1. 拉格朗日乘子全局一致性更新
-        2. 基于安全约束违反程度的智能体重要性评估
-        3. 渐进式同步策略保证训练稳定性
+        1. 提高同步比例，确保训练稳定性
+        2. 拉格朗日乘子全局一致性更新
+        3. 基于安全约束违反程度的智能体重要性评估
+        4. 移除随机性，确保可重现性
         """
         train_infos = []
         cost_train_infos = []
@@ -266,12 +267,13 @@ class AsyncRunner(Runner):
         # 计算训练进度和动态同步比例
         progress = getattr(self, 'current_episode', 0) / getattr(self, 'total_episodes', 1000)
         
-        # 改进的同步比例计算：考虑安全约束满足情况
-        base_sync_ratio = max(0.8, 1.0 - 0.3 * progress)  # 提高基础同步比例，增强稳定性
+        # 改进的同步比例计算：提高基础同步比例，增强稳定性
+        base_sync_ratio = max(0.8, 1.0 - 0.2 * progress)  # 提高基础同步比例从0.4到0.8
         safety_violation_penalty = self.calculate_safety_violation_penalty()
         adaptive_sync_ratio = min(1.0, base_sync_ratio + safety_violation_penalty)
         
-        num_sync_agents = max(2, int(self.num_agents * adaptive_sync_ratio))
+        # 确保至少有80%的智能体参与同步更新
+        num_sync_agents = max(int(self.num_agents * 0.8), int(self.num_agents * adaptive_sync_ratio))
         
         # 基于安全重要性选择关键智能体
         critical_agents = self.select_safety_critical_agents(num_sync_agents)
@@ -288,7 +290,13 @@ class AsyncRunner(Runner):
         if other_agents:
             other_train_infos = self.update_other_agents_async(other_agents)
             train_infos.extend(other_train_infos)
-            
+        
+        # 第三阶段：全局一致性检查和调整
+        self.ensure_global_consistency()
+        
+        # 记录异步训练统计信息
+        self.log_async_training_stats(critical_agents, other_agents, adaptive_sync_ratio, safety_violation_penalty)
+        
         return train_infos
     
     def calculate_safety_violation_penalty(self):
@@ -370,8 +378,8 @@ class AsyncRunner(Runner):
         
     def update_critical_agents_sync(self, critical_agents):
         """
-        关键智能体同步更新，确保拉格朗日乘子的全局一致性
-        这是MAPPO-Lagrangian Algorithm 3的核心改进
+        关键智能体同步更新（改进版本，确保全局一致性和理论保证）
+        基于论文Algorithm 3的改进实现
         """
         train_infos = []
         
@@ -385,98 +393,241 @@ class AsyncRunner(Runner):
             self.trainer[agent_id].prep_training()
             
             # 获取该智能体的成本信息
-            episode_costs = self.buffer[agent_id].episode_costs if hasattr(self.buffer[agent_id], 'episode_costs') else np.zeros(1)
-            cost_advantages = self.buffer[agent_id].cost_returns[:-1] - self.buffer[agent_id].cost_preds[:-1]
+            buffer = self.buffer[agent_id]
+            episode_costs = buffer.episode_costs[:-1].flatten() if hasattr(buffer, 'episode_costs') else torch.zeros(1)
+            cost_advantages = buffer.cost_advantages[:-1].flatten() if hasattr(buffer, 'cost_advantages') else torch.zeros(1)
             
             # 计算重要性权重（用于拉格朗日乘子更新）
-            available_actions = None if self.buffer[agent_id].available_actions is None \
-                else self.buffer[agent_id].available_actions[:-1].reshape(-1, *self.buffer[
-                                                                                   agent_id].available_actions.shape[2:])
+            available_actions = None if buffer.available_actions is None \
+                else buffer.available_actions[:-1].reshape(-1, *buffer.available_actions.shape[2:])
             
             _, action_log_probs = self.trainer[agent_id].policy.actor.evaluate_actions(
-                self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
-                self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
-                self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
-                self.buffer[agent_id].masks[:-1].reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
+                buffer.obs[:-1].reshape(-1, *buffer.obs.shape[2:]),
+                buffer.rnn_states[0:1].reshape(-1, *buffer.rnn_states.shape[2:]),
+                buffer.actions.reshape(-1, *buffer.actions.shape[2:]),
+                buffer.masks[:-1].reshape(-1, *buffer.masks.shape[2:]),
                 available_actions,
-                self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
+                buffer.active_masks[:-1].reshape(-1, *buffer.active_masks.shape[2:])
+            )
             
-            old_action_log_probs = self.buffer[agent_id].action_log_probs[:-1].reshape(-1, *self.buffer[agent_id].action_log_probs.shape[2:])
-            imp_weights = torch.exp(action_log_probs - old_action_log_probs)
+            # 计算重要性权重
+            imp_weights = torch.exp(action_log_probs).detach()
             
             all_episode_costs.append(episode_costs)
             all_cost_advantages.append(cost_advantages)
-            all_imp_weights.append(imp_weights.detach().cpu().numpy())
+            all_imp_weights.append(imp_weights.flatten())
         
-        # 第二步：全局拉格朗日乘子更新（基于所有关键智能体的信息）
+        # 第二步：全局拉格朗日乘子更新（改进版本）
         if all_episode_costs:
-            global_episode_costs = np.concatenate(all_episode_costs)
-            global_cost_advantages = np.concatenate(all_cost_advantages, axis=1) if all_cost_advantages else np.array([])
-            global_imp_weights = np.concatenate(all_imp_weights) if all_imp_weights else np.array([])
+            # 计算全局统计量
+            global_episode_costs = torch.cat(all_episode_costs, dim=0)
+            global_cost_advantages = torch.cat(all_cost_advantages, dim=0)
+            global_imp_weights = torch.cat(all_imp_weights, dim=0)
             
-            # 计算全局拉格朗日乘子更新
-            safety_bound = getattr(self, 'safety_bound', 0.2)
-            gamma = getattr(self, 'gamma', 0.99)
-            lagrangian_coef = getattr(self, 'lagrangian_coef_rate', 1e-4)
+            # 获取安全参数
+            safety_bound = getattr(self.all_args, 'safety_bound', 25.0)
+            gamma = getattr(self.all_args, 'gamma', 0.99)
+            lagrangian_coef = getattr(self.all_args, 'lagrangian_coef_rate', 1e-4)
             
-            if len(global_episode_costs) > 0 and len(global_cost_advantages) > 0:
-                delta_lamda_lagr = -((global_episode_costs.mean() - safety_bound) * (1 - gamma) + 
-                                   (global_imp_weights * global_cost_advantages.flatten()).mean())
-                
-                # 更新所有关键智能体的拉格朗日乘子
-                for agent_id in critical_agents:
-                    current_lamda = getattr(self.trainer[agent_id], 'lamda_lagr', 0.1)
-                    new_lamda = max(0.0, current_lamda - delta_lamda_lagr * lagrangian_coef)
-                    self.trainer[agent_id].lamda_lagr = new_lamda
+            # 计算约束违反程度
+            global_cost_mean = global_episode_costs.mean()
+            constraint_violation = global_cost_mean - safety_bound
+            
+            # 改进的全局拉格朗日乘子更新
+            # 1. 基于约束违反的主要更新项
+            violation_term = constraint_violation * (1 - gamma)
+            
+            # 2. 基于重要性权重的辅助更新项（降低权重以增加稳定性）
+            importance_term = (global_imp_weights * global_cost_advantages).mean().detach() * 0.3
+            
+            # 3. 计算总的更新量
+            delta_lamda_lagr = -(violation_term + importance_term)
+            
+            # 4. 自适应学习率：根据约束违反程度和智能体数量调整
+            adaptive_coef = lagrangian_coef
+            if abs(constraint_violation) > 0.1:  # 严重违反时增加学习率
+                adaptive_coef *= 1.5
+            elif abs(constraint_violation) < 0.05:  # 接近满足时降低学习率
+                adaptive_coef *= 0.7
+            
+            # 考虑智能体数量的影响
+            num_agents_factor = min(1.0, len(critical_agents) / self.num_agents)
+            adaptive_coef *= num_agents_factor
+            
+            # 5. 平滑更新机制：使用指数移动平均
+            if not hasattr(self, 'global_prev_delta_lamda'):
+                self.global_prev_delta_lamda = 0.0
+            
+            smoothing_factor = 0.7
+            delta_lamda_lagr_smooth = (smoothing_factor * self.global_prev_delta_lamda + 
+                                     (1 - smoothing_factor) * delta_lamda_lagr)
+            self.global_prev_delta_lamda = delta_lamda_lagr_smooth
+            
+            # 6. 计算新的全局拉格朗日乘子
+            current_lamda = getattr(self.trainer[0], 'lamda_lagr', 0.1)  # 使用第一个智能体的当前值作为基准
+            new_global_lamda = max(0.0, current_lamda - (delta_lamda_lagr_smooth * adaptive_coef))
+            
+            # 7. 限制拉格朗日乘子的范围
+            max_lamda = 2.0
+            min_lamda = 0.01
+            new_global_lamda = max(min_lamda, min(new_global_lamda, max_lamda))
+            
+            # 8. 同步更新所有关键智能体的拉格朗日乘子
+            for agent_id in critical_agents:
+                self.trainer[agent_id].lamda_lagr = new_global_lamda
         
         # 第三步：使用统一的拉格朗日乘子进行策略更新
         for agent_id in critical_agents:
-            train_info = self.trainer[agent_id].train(self.buffer[agent_id], update_actor=True)
+            buffer = self.buffer[agent_id]
+            
+            # 使用全局统计量进行更新
+            if all_episode_costs:
+                global_episode_costs_mean = global_episode_costs.mean().unsqueeze(0)
+            else:
+                global_episode_costs_mean = None
+            
+            # 策略更新
+            train_info = self.trainer[agent_id].train(
+                buffer, 
+                update_actor=True,
+                aver_episode_costs=global_episode_costs_mean,
+                imp_weights=all_imp_weights[0] if all_imp_weights else None
+            )
+            
+            # 记录梯度范数
+            if hasattr(self.trainer[agent_id].policy.actor, 'parameters'):
+                grad_norm = sum(p.grad.norm().item() for p in self.trainer[agent_id].policy.actor.parameters() if p.grad is not None)
+                train_info['grad_norm'] = grad_norm
             
             # 记录重要性信息
-            grad_norm = train_info.get('actor_grad_norm', 0)
-            self.record_agent_importance(agent_id, grad_norm)
+            self.record_agent_importance(agent_id, train_info.get('grad_norm', 0))
             
             # 记录策略变化（用于重要性评估）
             self.record_policy_change(agent_id, train_info)
             
             train_infos.append(train_info)
-            self.buffer[agent_id].after_update()
+            buffer.after_update()
         
         return train_infos
     
     def update_other_agents_async(self, other_agents):
         """
-        其他智能体异步更新，使用关键智能体更新后的拉格朗日乘子
+        其他智能体异步更新（改进版本，确保一致性和稳定性）
+        使用关键智能体更新后的拉格朗日乘子，移除随机性
         """
         train_infos = []
         
         # 获取关键智能体的平均拉格朗日乘子作为参考
         if hasattr(self, 'trainer') and len(self.trainer) > 0:
-            avg_lamda_lagr = np.mean([getattr(trainer, 'lamda_lagr', 0.1) for trainer in self.trainer])
+            # 使用所有智能体的拉格朗日乘子计算平均值（确保一致性）
+            lamda_values = [getattr(trainer, 'lamda_lagr', 0.1) for trainer in self.trainer]
+            avg_lamda_lagr = np.mean(lamda_values)
+            
+            # 计算拉格朗日乘子的标准差，用于评估一致性
+            lamda_std = np.std(lamda_values)
+            
+            # 如果一致性较差，使用更保守的更新策略
+            if lamda_std > 0.1:  # 标准差过大时使用保守策略
+                # 使用中位数而非平均值，更稳定
+                avg_lamda_lagr = np.median(lamda_values)
         else:
             avg_lamda_lagr = 0.1
         
+        # 计算全局成本信息用于一致性检查
+        global_episode_costs = []
         for agent_id in other_agents:
-            # 使用参考拉格朗日乘子
+            buffer = self.buffer[agent_id]
+            if hasattr(buffer, 'episode_costs'):
+                episode_costs = buffer.episode_costs[:-1].flatten()
+                global_episode_costs.append(episode_costs)
+        
+        # 如果有成本信息，进行轻微的拉格朗日乘子调整
+        if global_episode_costs:
+            global_costs = torch.cat(global_episode_costs, dim=0)
+            global_cost_mean = global_costs.mean()
+            safety_bound = getattr(self.all_args, 'safety_bound', 25.0)
+            
+            # 基于约束违反程度进行微调
+            constraint_violation = global_cost_mean - safety_bound
+            if abs(constraint_violation) > 0.05:  # 只在显著违反时调整
+                adjustment_factor = 1.0 + 0.1 * torch.sign(constraint_violation)
+                avg_lamda_lagr *= adjustment_factor.item()
+                avg_lamda_lagr = max(0.01, min(avg_lamda_lagr, 2.0))  # 限制范围
+        
+        for agent_id in other_agents:
+            # 同步拉格朗日乘子（移除随机性，确保一致性）
             self.trainer[agent_id].lamda_lagr = avg_lamda_lagr
             
-            # 强制策略更新，确保训练一致性
-            update_actor = True  # 移除随机性，始终更新策略
-            train_info = self.trainer[agent_id].train(self.buffer[agent_id], update_actor=update_actor)
+            # 强制策略更新，确保训练一致性（移除随机性）
+            update_actor = True  # 始终更新策略，确保学习一致性
+            
+            buffer = self.buffer[agent_id]
+            
+            # 使用全局成本信息进行更新（如果可用）
+            if global_episode_costs:
+                global_episode_costs_mean = torch.cat(global_episode_costs, dim=0).mean().unsqueeze(0)
+            else:
+                global_episode_costs_mean = None
+            
+            # 计算重要性权重
+            imp_weights = None
+            if hasattr(buffer, 'available_actions') and buffer.available_actions is not None:
+                available_actions = buffer.available_actions[:-1].reshape(-1, *buffer.available_actions.shape[2:])
+            else:
+                available_actions = None
+            
+            try:
+                _, action_log_probs = self.trainer[agent_id].policy.actor.evaluate_actions(
+                    buffer.obs[:-1].reshape(-1, *buffer.obs.shape[2:]),
+                    buffer.rnn_states[0:1].reshape(-1, *buffer.rnn_states.shape[2:]),
+                    buffer.actions.reshape(-1, *buffer.actions.shape[2:]),
+                    buffer.masks[:-1].reshape(-1, *buffer.masks.shape[2:]),
+                    available_actions,
+                    buffer.active_masks[:-1].reshape(-1, *buffer.active_masks.shape[2:])
+                )
+                imp_weights = torch.exp(action_log_probs).detach().flatten()
+            except:
+                imp_weights = None
+            
+            # 策略更新
+            train_info = self.trainer[agent_id].train(
+                buffer, 
+                update_actor=update_actor,
+                aver_episode_costs=global_episode_costs_mean,
+                imp_weights=imp_weights
+            )
+            
+            # 记录梯度范数
+            if hasattr(self.trainer[agent_id].policy.actor, 'parameters'):
+                grad_norm = sum(p.grad.norm().item() for p in self.trainer[agent_id].policy.actor.parameters() if p.grad is not None)
+                train_info['grad_norm'] = grad_norm
             
             # 记录重要性信息
-            grad_norm = train_info.get('actor_grad_norm', 0)
-            self.record_agent_importance(agent_id, grad_norm)
+            self.record_agent_importance(agent_id, train_info.get('grad_norm', 0))
             
             train_infos.append(train_info)
-            self.buffer[agent_id].after_update()
+            buffer.after_update()
         
         return train_infos
     
-    def record_policy_change(self, agent_id, train_info):
+    def ensure_global_consistency(self):
         """
-        记录策略变化信息，用于重要性评估
+        确保全局拉格朗日乘子一致性
+        """
+        if hasattr(self, 'trainer') and len(self.trainer) > 0:
+            # 计算所有智能体拉格朗日乘子的统计信息
+            lamda_values = [getattr(trainer, 'lamda_lagr', 0.1) for trainer in self.trainer]
+            lamda_mean = np.mean(lamda_values)
+            lamda_std = np.std(lamda_values)
+            
+            # 如果标准差过大，强制同步到平均值
+            if lamda_std > 0.2:  # 阈值可调
+                for trainer in self.trainer:
+                    trainer.lamda_lagr = lamda_mean
+    
+    def record_policy_change(self, agent_id, train_info=None):
+        """
+        记录策略变化信息，用于重要性评估（改进版本）
         """
         if not hasattr(self, 'agent_policy_change_history'):
             self.agent_policy_change_history = []
@@ -485,9 +636,12 @@ class AsyncRunner(Runner):
             self.agent_policy_change_history.append(np.zeros(self.num_agents))
         
         # 使用策略损失和梯度范数作为策略变化的指标
-        policy_loss = train_info.get('policy_loss', 0)
-        actor_grad_norm = train_info.get('actor_grad_norm', 0)
-        policy_change = abs(policy_loss) + actor_grad_norm
+        if train_info is not None:
+            policy_loss = train_info.get('policy_loss', 0)
+            actor_grad_norm = train_info.get('grad_norm', train_info.get('actor_grad_norm', 0))
+            policy_change = abs(policy_loss) + actor_grad_norm
+        else:
+            policy_change = 0.0
         
         self.agent_policy_change_history[-1][agent_id] = policy_change
         

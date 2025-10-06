@@ -192,7 +192,7 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
 
         self.policy.actor_optimizer.step()
 
-        # 拉格朗日乘子更新（与同步算法保持一致）
+        # 拉格朗日乘子更新（改进版本，确保稳定性和一致性）
         if update_actor and cost_adv_targ is not None:
             # 使用传入的平均episode成本
             if aver_episode_costs is not None:
@@ -201,13 +201,43 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
                 # 如果没有提供，使用成本优势的近似
                 episode_costs_tensor = cost_adv_targ.mean(dim=0, keepdim=True)
             
-            # 计算拉格朗日乘子更新
-            delta_lamda_lagr = -((episode_costs_tensor.mean() - self.safety_bound) * (1 - self.gamma) + 
-                               (imp_weights * cost_adv_targ)).mean().detach()
+            # 计算约束违反程度
+            constraint_violation = episode_costs_tensor.mean() - self.safety_bound
             
-            # 更新拉格朗日乘子（使用ReLU确保非负）
+            # 改进的拉格朗日乘子更新公式
+            # 1. 基于约束违反的主要更新项
+            violation_term = constraint_violation * (1 - self.gamma)
+            
+            # 2. 基于重要性权重的辅助更新项（降低权重以增加稳定性）
+            importance_term = (imp_weights * cost_adv_targ).mean().detach() * 0.5
+            
+            # 3. 计算总的更新量
+            delta_lamda_lagr = -(violation_term + importance_term)
+            
+            # 4. 自适应学习率：根据约束违反程度调整
+            adaptive_coef = self.lagrangian_coef
+            if abs(constraint_violation) > 0.1:  # 严重违反时增加学习率
+                adaptive_coef *= 2.0
+            elif abs(constraint_violation) < 0.05:  # 接近满足时降低学习率
+                adaptive_coef *= 0.5
+            
+            # 5. 平滑更新机制：使用指数移动平均
+            if not hasattr(self, 'prev_delta_lamda'):
+                self.prev_delta_lamda = 0.0
+            
+            smoothing_factor = 0.8
+            delta_lamda_lagr_smooth = (smoothing_factor * self.prev_delta_lamda + 
+                                     (1 - smoothing_factor) * delta_lamda_lagr)
+            self.prev_delta_lamda = delta_lamda_lagr_smooth
+            
+            # 6. 更新拉格朗日乘子（使用ReLU确保非负，并添加上界限制）
             R_Relu = torch.nn.ReLU()
-            new_lamda_lagr = R_Relu(self.lamda_lagr - (delta_lamda_lagr * self.lagrangian_coef))
+            new_lamda_lagr = R_Relu(self.lamda_lagr - (delta_lamda_lagr_smooth * adaptive_coef))
+            
+            # 7. 限制拉格朗日乘子的范围，防止过度增长
+            max_lamda = 2.0  # 设置合理的上界
+            new_lamda_lagr = min(new_lamda_lagr, max_lamda)
+            
             self.lamda_lagr = new_lamda_lagr
 
         # 记录梯度信息用于重要性计算

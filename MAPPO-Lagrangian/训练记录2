@@ -1,0 +1,261 @@
+(macpo) chunran7@chunran7-laptop:~/MARL/MAPPO-Lagrangian/mappo_lagrangian/scripts$ ./train_mujoco.sh 
+env is mujoco, scenario is Ant-v2, algo is mappo_lagr, exp is rnn, max seed is 1
+使用异步训练模式: progressive, 选择比例: 0.7
+seed is 1:
+使用异步训练模式: progressive
+异步比例: 0.7
+异步MAPPO-Lagrangian配置:  Namespace(add_agent_id=False, add_center_xy=True, add_distance_state=False, add_enemy_action_state=False, add_local_obs=False, add_move_state=False, add_visible_state=False, add_xy_state=False, agent_conf='2x4', agent_obsk=1, algorithm_name='async_mappo_lagr', async_mode='progressive', async_ratio=0.7, clip_param=0.2, compression_ratio=0.1, critic_lr=0.005, cuda=False, cuda_deterministic=True, data_chunk_length=10, enable_communication_compression=True, enable_gradient_accumulation=True, enable_mixed_precision=False, entropy_coef=0.01, env_name='mujoco', episode_length=1000, eval_episodes=32, eval_interval=25, experiment_name='rnn_async_progressive', final_sync_ratio=0.3, gae_lambda=0.95, gain=0.01, gamma=0.99, gradient_accumulation_steps=2, hidden_size=64, huber_delta=10.0, ifi=0.1, importance_update_freq=5, importance_window=10, initial_sync_ratio=1.0, lagrangian_coef=0.01, lagrangian_coef_rate=1e-07, lamda_lagr=0.78, layer_N=1, lightweight_update_ratio=0.5, log_interval=5, lr=9e-05, max_grad_norm=10.0, max_policy_divergence=0.5, model_dir=None, n_eval_rollout_threads=1, n_render_rollout_threads=1, n_rollout_threads=16, n_training_threads=4, num_agents=2, num_env_steps=10000000, num_groups=4, num_mini_batch=40, opti_eps=1e-05, ppo_epoch=5, recurrent_N=1, render_episodes=5, safety_bound=0.2, save_gifs=False, save_interval=1, scenario='Ant-v2', seed=50, share_policy=True, stability_check_freq=50, stacked_frames=1, std_x_coef=1.0, std_y_coef=0.5, sync_decay_episodes=800, sync_threshold=0.8, use_ReLU=True, use_async=True, use_centralized_V=True, use_clipped_value_loss=True, use_eval=False, use_feature_normalization=True, use_gae=True, use_huber_loss=True, use_linear_lr_decay=False, use_max_grad_norm=True, use_mustalive=True, use_naive_recurrent_policy=False, use_obs_instead_of_state=False, use_orthogonal=True, use_policy_active_masks=True, use_popart=True, use_proper_time_limits=False, use_recurrent_policy=False, use_render=False, use_single_network=False, use_stacked_frames=False, use_state_agent=True, use_value_active_masks=False, use_valuenorm=True, use_wandb=False, user_name='marl', value_loss_coef=1, value_update_freq=2, weight_decay=0)
+cuda flag:  False Torch:  False
+choose to use cpu...
+[HyperEdge({ankle4, hip4}), HyperEdge({ankle1, hip1}), HyperEdge({ankle2, hip2}), HyperEdge({ankle3, hip3}), HyperEdge({hip3, hip4, hip2, hip1})]
+[HyperEdge({ankle4, hip4}), HyperEdge({ankle1, hip1}), HyperEdge({ankle2, hip2}), HyperEdge({ankle3, hip3}), HyperEdge({hip3, hip4, hip2, hip1})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip3, hip4, hip1, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip3, hip4, hip1, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip2, hip4, hip1, hip3})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip2, hip4, hip1, hip3})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip4, hip3, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip4, hip3, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip4, hip3, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip4, hip3, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip4, hip2, hip3})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip4, hip2, hip3})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip4, hip3, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip4, hip3, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip3, hip4, hip2, hip1})]
+[HyperEdge({hip4, ankle4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip3, hip4, hip2, hip1})]
+[HyperEdge({ankle4, hip4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip3, hip1, hip4, hip2})]
+[HyperEdge({ankle4, hip4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip3, hip1, hip4, hip2})]
+[HyperEdge({ankle4, hip4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({ankle3, hip3}), HyperEdge({hip1, hip4, hip2, hip3})]
+[HyperEdge({ankle4, hip4}), HyperEdge({hip1, ankle1}), HyperEdge({hip2, ankle2}), HyperEdge({ankle3, hip3}), HyperEdge({hip1, hip4, hip2, hip3})]
+[HyperEdge({ankle4, hip4}), HyperEdge({hip1, ankle1}), HyperEdge({ankle2, hip2}), HyperEdge({ankle3, hip3}), HyperEdge({hip4, hip2, hip1, hip3})]
+[HyperEdge({ankle4, hip4}), HyperEdge({hip1, ankle1}), HyperEdge({ankle2, hip2}), HyperEdge({ankle3, hip3}), HyperEdge({hip4, hip2, hip1, hip3})]
+[HyperEdge({hip4, ankle4}), HyperEdge({ankle1, hip1}), HyperEdge({ankle2, hip2}), HyperEdge({ankle3, hip3}), HyperEdge({hip4, hip3, hip1, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({ankle1, hip1}), HyperEdge({ankle2, hip2}), HyperEdge({ankle3, hip3}), HyperEdge({hip4, hip3, hip1, hip2})]
+[HyperEdge({hip4, ankle4}), HyperEdge({ankle1, hip1}), HyperEdge({ankle2, hip2}), HyperEdge({hip3, ankle3}), HyperEdge({hip4, hip2, hip1, hip3})]
+[HyperEdge({hip4, ankle4}), HyperEdge({ankle1, hip1}), HyperEdge({ankle2, hip2}), HyperEdge({hip3, ankle3}), HyperEdge({hip4, hip2, hip1, hip3})]
+[HyperEdge({ankle4, hip4}), HyperEdge({ankle1, hip1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip3, hip2, hip4})]
+[HyperEdge({ankle4, hip4}), HyperEdge({ankle1, hip1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip1, hip3, hip2, hip4})]
+[HyperEdge({ankle4, hip4}), HyperEdge({ankle1, hip1}), HyperEdge({ankle2, hip2}), HyperEdge({ankle3, hip3}), HyperEdge({hip1, hip3, hip4, hip2})]
+[HyperEdge({ankle4, hip4}), HyperEdge({ankle1, hip1}), HyperEdge({ankle2, hip2}), HyperEdge({ankle3, hip3}), HyperEdge({hip1, hip3, hip4, hip2})]
+[HyperEdge({ankle4, hip4}), HyperEdge({ankle1, hip1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip2, hip3, hip4, hip1})]
+[HyperEdge({ankle4, hip4}), HyperEdge({ankle1, hip1}), HyperEdge({hip2, ankle2}), HyperEdge({hip3, ankle3}), HyperEdge({hip2, hip3, hip4, hip1})]
+share_observation_space:  [Box(31,), Box(31,)]
+observation_space:  [Box(31,), Box(31,)]
+action_space:  (Box(4,), Box(4,))
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 0/625 episodes, total num timesteps 16000/10000000, FPS 2432.
+
+some episodes done, average episode reward is 122.29794332776774, average episode cost is 13.55813953488372
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 5/625 episodes, total num timesteps 96000/10000000, FPS 2475.
+
+some episodes done, average episode reward is 194.07820303284493, average episode cost is 47.5
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 10/625 episodes, total num timesteps 176000/10000000, FPS 2475.
+
+some episodes done, average episode reward is 178.70840551934305, average episode cost is 49.5
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 15/625 episodes, total num timesteps 256000/10000000, FPS 2477.
+
+some episodes done, average episode reward is 118.6826485328484, average episode cost is 41.65573770491803
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 20/625 episodes, total num timesteps 336000/10000000, FPS 2477.
+
+some episodes done, average episode reward is 108.12118908013198, average episode cost is 28.540983606557376
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 25/625 episodes, total num timesteps 416000/10000000, FPS 2476.
+
+some episodes done, average episode reward is 107.32293609340309, average episode cost is 15.34375
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 30/625 episodes, total num timesteps 496000/10000000, FPS 2478.
+
+some episodes done, average episode reward is 86.5758058754507, average episode cost is 36.81944444444444
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 35/625 episodes, total num timesteps 576000/10000000, FPS 2477.
+
+some episodes done, average episode reward is 83.43558414044905, average episode cost is 20.056338028169016
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 40/625 episodes, total num timesteps 656000/10000000, FPS 2477.
+
+some episodes done, average episode reward is 77.16058310205842, average episode cost is 21.91764705882353
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 45/625 episodes, total num timesteps 736000/10000000, FPS 2477.
+
+some episodes done, average episode reward is 75.08240105020238, average episode cost is 12.76086956521739
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 50/625 episodes, total num timesteps 816000/10000000, FPS 2478.
+
+some episodes done, average episode reward is 70.63853627404268, average episode cost is 30.175824175824175
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 55/625 episodes, total num timesteps 896000/10000000, FPS 2479.
+
+some episodes done, average episode reward is 72.21890328187921, average episode cost is 21.971698113207548
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 60/625 episodes, total num timesteps 976000/10000000, FPS 2480.
+
+some episodes done, average episode reward is 65.13691379079371, average episode cost is 23.117021276595743
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 65/625 episodes, total num timesteps 1056000/10000000, FPS 2480.
+
+some episodes done, average episode reward is 58.061898722861606, average episode cost is 17.78409090909091
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 70/625 episodes, total num timesteps 1136000/10000000, FPS 2480.
+
+some episodes done, average episode reward is 49.28966172426105, average episode cost is 9.870229007633588
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 75/625 episodes, total num timesteps 1216000/10000000, FPS 2481.
+
+some episodes done, average episode reward is 62.36841610177462, average episode cost is 20.745098039215687
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 80/625 episodes, total num timesteps 1296000/10000000, FPS 2481.
+
+some episodes done, average episode reward is 57.12512283639746, average episode cost is 22.317307692307693
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 85/625 episodes, total num timesteps 1376000/10000000, FPS 2482.
+
+some episodes done, average episode reward is 53.17797843483879, average episode cost is 7.90625
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 90/625 episodes, total num timesteps 1456000/10000000, FPS 2482.
+
+some episodes done, average episode reward is 57.053500166738495, average episode cost is 19.083969465648856
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 95/625 episodes, total num timesteps 1536000/10000000, FPS 2482.
+
+some episodes done, average episode reward is 52.93295995128132, average episode cost is 16.956521739130434
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 100/625 episodes, total num timesteps 1616000/10000000, FPS 2483.
+
+some episodes done, average episode reward is 62.90387486697537, average episode cost is 21.457142857142856
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 105/625 episodes, total num timesteps 1696000/10000000, FPS 2483.
+
+some episodes done, average episode reward is 48.07072918412129, average episode cost is 14.228346456692913
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 110/625 episodes, total num timesteps 1776000/10000000, FPS 2484.
+
+some episodes done, average episode reward is 50.1472971306719, average episode cost is 12.116788321167883
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 115/625 episodes, total num timesteps 1856000/10000000, FPS 2484.
+
+some episodes done, average episode reward is 46.505835674364135, average episode cost is 8.893129770992367
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 120/625 episodes, total num timesteps 1936000/10000000, FPS 2484.
+
+some episodes done, average episode reward is 43.50378460193193, average episode cost is 6.969135802469136
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 125/625 episodes, total num timesteps 2016000/10000000, FPS 2484.
+
+some episodes done, average episode reward is 42.886439062210236, average episode cost is 9.394557823129253
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 130/625 episodes, total num timesteps 2096000/10000000, FPS 2485.
+
+some episodes done, average episode reward is 44.14562407395778, average episode cost is 10.149068322981366
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 135/625 episodes, total num timesteps 2176000/10000000, FPS 2485.
+
+some episodes done, average episode reward is 45.1994356112156, average episode cost is 7.912790697674419
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 140/625 episodes, total num timesteps 2256000/10000000, FPS 2485.
+
+some episodes done, average episode reward is 37.06740674005861, average episode cost is 11.804733727810651
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 145/625 episodes, total num timesteps 2336000/10000000, FPS 2485.
+
+some episodes done, average episode reward is 38.62595247111535, average episode cost is 11.425414364640885
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 150/625 episodes, total num timesteps 2416000/10000000, FPS 2486.
+
+some episodes done, average episode reward is 38.64519261811309, average episode cost is 4.459893048128342
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 155/625 episodes, total num timesteps 2496000/10000000, FPS 2486.
+
+some episodes done, average episode reward is 40.681579273941914, average episode cost is 7.424581005586592
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 160/625 episodes, total num timesteps 2576000/10000000, FPS 2486.
+
+some episodes done, average episode reward is 34.62760816136323, average episode cost is 8.514423076923077
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 165/625 episodes, total num timesteps 2656000/10000000, FPS 2486.
+
+some episodes done, average episode reward is 38.12578643241077, average episode cost is 5.186046511627907
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 170/625 episodes, total num timesteps 2736000/10000000, FPS 2486.
+
+some episodes done, average episode reward is 37.03198623429934, average episode cost is 4.6752136752136755
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 175/625 episodes, total num timesteps 2816000/10000000, FPS 2487.
+
+some episodes done, average episode reward is 31.22696631619571, average episode cost is 3.428030303030303
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 180/625 episodes, total num timesteps 2896000/10000000, FPS 2487.
+
+some episodes done, average episode reward is 32.41587175770159, average episode cost is 3.434108527131783
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 185/625 episodes, total num timesteps 2976000/10000000, FPS 2486.
+
+some episodes done, average episode reward is 30.819543875359845, average episode cost is 4.338983050847458
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 190/625 episodes, total num timesteps 3056000/10000000, FPS 2487.
+
+some episodes done, average episode reward is 30.78138254498675, average episode cost is 4.138613861386139
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 195/625 episodes, total num timesteps 3136000/10000000, FPS 2487.
+
+some episodes done, average episode reward is 30.309018695247836, average episode cost is 4.24822695035461
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 200/625 episodes, total num timesteps 3216000/10000000, FPS 2487.
+
+some episodes done, average episode reward is 28.59826028166411, average episode cost is 3.488294314381271
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 205/625 episodes, total num timesteps 3296000/10000000, FPS 2487.
+
+some episodes done, average episode reward is 30.92016797201823, average episode cost is 3.6130268199233715
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 210/625 episodes, total num timesteps 3376000/10000000, FPS 2488.
+
+some episodes done, average episode reward is 25.752837846292838, average episode cost is 4.621710526315789
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 215/625 episodes, total num timesteps 3456000/10000000, FPS 2488.
+
+some episodes done, average episode reward is 27.423206134771746, average episode cost is 4.1328671328671325
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 220/625 episodes, total num timesteps 3536000/10000000, FPS 2488.
+
+some episodes done, average episode reward is 29.13066701302914, average episode cost is 2.5628930817610063
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 225/625 episodes, total num timesteps 3616000/10000000, FPS 2488.
+
+some episodes done, average episode reward is 31.989257522282305, average episode cost is 3.2262996941896023
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 230/625 episodes, total num timesteps 3696000/10000000, FPS 2488.
+
+some episodes done, average episode reward is 28.69153607550115, average episode cost is 2.6158536585365852
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 235/625 episodes, total num timesteps 3776000/10000000, FPS 2489.
+
+some episodes done, average episode reward is 28.3044190254911, average episode cost is 2.3402366863905324
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 240/625 episodes, total num timesteps 3856000/10000000, FPS 2489.
+
+some episodes done, average episode reward is 24.347736499100314, average episode cost is 2.5665722379603397
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 245/625 episodes, total num timesteps 3936000/10000000, FPS 2489.
+
+some episodes done, average episode reward is 25.29106216078289, average episode cost is 2.050531914893617
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 250/625 episodes, total num timesteps 4016000/10000000, FPS 2490.
+
+some episodes done, average episode reward is 26.4958208150146, average episode cost is 2.9176136363636362
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 255/625 episodes, total num timesteps 4096000/10000000, FPS 2490.
+
+some episodes done, average episode reward is 23.089157008557944, average episode cost is 1.7044917257683214
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 260/625 episodes, total num timesteps 4176000/10000000, FPS 2490.
+
+some episodes done, average episode reward is 22.314889844483105, average episode cost is 1.6790697674418604
+
+ Scenario Ant-v2 Algo async_mappo_lagr Exp rnn_async_progressive updates 265/625 episodes, total num timesteps 4256000/10000000, FPS 2490.
+
+some episodes done, average episode reward is 21.162441491943373, average episode cost is 1.525229357798165
+
