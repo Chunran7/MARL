@@ -118,6 +118,12 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
             cost_adv_targ = check(cost_adv_targ).to(**self.tpdv)
         else:
             cost_adv_targ = None
+        
+        # 处理aver_episode_costs
+        if aver_episode_costs is not None:
+            aver_episode_costs = check(aver_episode_costs).to(**self.tpdv)
+        else:
+            aver_episode_costs = None
 
         # 计算价值损失
         values, action_log_probs, dist_entropy, cost_values = self.policy.evaluate_actions(share_obs_batch,
@@ -189,6 +195,24 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
             cost_grad_norm = get_gard_norm(self.policy.cost_critic.parameters())
 
         self.policy.actor_optimizer.step()
+
+        # 拉格朗日乘子更新（与同步算法保持一致）
+        if update_actor and cost_adv_targ is not None:
+            # 使用传入的平均episode成本
+            if aver_episode_costs is not None:
+                episode_costs_tensor = aver_episode_costs
+            else:
+                # 如果没有提供，使用成本优势的近似
+                episode_costs_tensor = cost_adv_targ.mean(dim=0, keepdim=True)
+            
+            # 计算拉格朗日乘子更新
+            delta_lamda_lagr = -((episode_costs_tensor.mean() - self.safety_bound) * (1 - self.gamma) + 
+                               (imp_weights * cost_adv_targ)).mean().detach()
+            
+            # 更新拉格朗日乘子（使用ReLU确保非负）
+            R_Relu = torch.nn.ReLU()
+            new_lamda_lagr = R_Relu(self.lamda_lagr - (delta_lamda_lagr * self.lagrangian_coef))
+            self.lamda_lagr = new_lamda_lagr
 
         # 记录梯度信息用于重要性计算
         if update_actor:
@@ -264,11 +288,11 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
 
         for _ in range(ppo_epoch):
             if self._use_recurrent_policy:
-                data_generator = buffer.recurrent_generator(advantages, self.num_mini_batch, self.data_chunk_length)
+                data_generator = buffer.recurrent_generator(advantages, self.num_mini_batch, self.data_chunk_length, cost_adv=cost_advantages)
             elif self._use_naive_recurrent:
-                data_generator = buffer.naive_recurrent_generator(advantages, self.num_mini_batch)
+                data_generator = buffer.naive_recurrent_generator(advantages, self.num_mini_batch, cost_adv=cost_advantages)
             else:
-                data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
+                data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch, cost_adv=cost_advantages)
 
             for sample in data_generator:
                 # 执行PPO更新，传递update_actor参数
