@@ -119,11 +119,7 @@ class Async_R_MAPPO_Lagr(R_MAPPO_Lagr):
         else:
             cost_adv_targ = None
         
-        # 处理aver_episode_costs
-        if aver_episode_costs is not None:
-            aver_episode_costs = check(aver_episode_costs).to(**self.tpdv)
-        else:
-            aver_episode_costs = None
+        # 注意：aver_episode_costs 不进行设备转换，遵循原算法设计
 
         # 计算价值损失
         values, action_log_probs, dist_entropy, cost_values = self.policy.evaluate_actions(share_obs_batch,
