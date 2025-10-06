@@ -398,7 +398,7 @@ class AsyncRunner(Runner):
             # 计算全局拉格朗日乘子更新
             safety_bound = getattr(self, 'safety_bound', 0.2)
             gamma = getattr(self, 'gamma', 0.99)
-            lagrangian_coef = getattr(self, 'lagrangian_coef_rate', 1e-7)
+            lagrangian_coef = getattr(self, 'lagrangian_coef_rate', 1e-4)
             
             if len(global_episode_costs) > 0 and len(global_cost_advantages) > 0:
                 delta_lamda_lagr = -((global_episode_costs.mean() - safety_bound) * (1 - gamma) + 
@@ -406,7 +406,7 @@ class AsyncRunner(Runner):
                 
                 # 更新所有关键智能体的拉格朗日乘子
                 for agent_id in critical_agents:
-                    current_lamda = getattr(self.trainer[agent_id], 'lamda_lagr', 0.78)
+                    current_lamda = getattr(self.trainer[agent_id], 'lamda_lagr', 0.1)
                     new_lamda = max(0.0, current_lamda - delta_lamda_lagr * lagrangian_coef)
                     self.trainer[agent_id].lamda_lagr = new_lamda
         
@@ -434,9 +434,9 @@ class AsyncRunner(Runner):
         
         # 获取关键智能体的平均拉格朗日乘子作为参考
         if hasattr(self, 'trainer') and len(self.trainer) > 0:
-            avg_lamda_lagr = np.mean([getattr(trainer, 'lamda_lagr', 0.78) for trainer in self.trainer])
+            avg_lamda_lagr = np.mean([getattr(trainer, 'lamda_lagr', 0.1) for trainer in self.trainer])
         else:
-            avg_lamda_lagr = 0.78
+            avg_lamda_lagr = 0.1
         
         for agent_id in other_agents:
             # 使用参考拉格朗日乘子
@@ -510,7 +510,7 @@ class AsyncRunner(Runner):
             self.async_training_logs = []
         
         # 计算拉格朗日乘子的统计信息
-        lamda_values = [getattr(self.trainer[i], 'lamda_lagr', 0.78) for i in range(self.num_agents)]
+        lamda_values = [getattr(self.trainer[i], 'lamda_lagr', 0.1) for i in range(self.num_agents)]
         lamda_mean = np.mean(lamda_values)
         lamda_std = np.std(lamda_values)
         
