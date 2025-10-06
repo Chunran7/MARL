@@ -172,6 +172,27 @@ class AsyncRunner(Runner):
             train_infos.append(train_info)
             self.buffer[agent_id].after_update()
             
+        # 第三阶段：强制同步所有智能体的拉格朗日乘子
+        self.sync_all_lagrangian_multipliers()
+        
+        return train_infos
+    
+    def sync_all_lagrangian_multipliers(self):
+        """
+        强制同步所有智能体的拉格朗日乘子，确保全局一致性
+        """
+        if hasattr(self, 'trainer') and len(self.trainer) > 0:
+            # 计算所有智能体拉格朗日乘子的平均值
+            avg_lamda = np.mean([getattr(trainer, 'lamda_lagr', 0.1) for trainer in self.trainer])
+            
+            # 将平均值应用到所有智能体
+            for trainer in self.trainer:
+                trainer.lamda_lagr = avg_lamda
+            
+            # 记录同步信息
+            if hasattr(self, 'logger'):
+                self.logger.info(f"同步拉格朗日乘子: {avg_lamda:.6f}")
+        
         return train_infos
     
     def record_agent_importance(self, agent_id, grad_norm):
@@ -248,7 +269,7 @@ class AsyncRunner(Runner):
         progress = getattr(self, 'current_episode', 0) / getattr(self, 'total_episodes', 1000)
         
         # 改进的同步比例计算：考虑安全约束满足情况
-        base_sync_ratio = max(0.4, 1.0 - 0.8 * progress)  # 基础同步比例
+        base_sync_ratio = max(0.8, 1.0 - 0.3 * progress)  # 提高基础同步比例，增强稳定性
         safety_violation_penalty = self.calculate_safety_violation_penalty()
         adaptive_sync_ratio = min(1.0, base_sync_ratio + safety_violation_penalty)
         
@@ -442,8 +463,8 @@ class AsyncRunner(Runner):
             # 使用参考拉格朗日乘子
             self.trainer[agent_id].lamda_lagr = avg_lamda_lagr
             
-            # 异步更新（可以选择性更新策略）
-            update_actor = np.random.random() < 0.7  # 70%概率更新策略
+            # 强制策略更新，确保训练一致性
+            update_actor = True  # 移除随机性，始终更新策略
             train_info = self.trainer[agent_id].train(self.buffer[agent_id], update_actor=update_actor)
             
             # 记录重要性信息
