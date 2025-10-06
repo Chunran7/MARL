@@ -175,7 +175,7 @@ class AsyncRunner(Runner):
         # 第三阶段：强制同步所有智能体的拉格朗日乘子
         self.sync_all_lagrangian_multipliers()
         
-        return train_infos
+        # 方法执行完成，无需返回值
     
     def sync_all_lagrangian_multipliers(self):
         """
