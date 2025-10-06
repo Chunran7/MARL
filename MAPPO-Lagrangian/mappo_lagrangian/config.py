@@ -241,10 +241,10 @@ def get_config():
     parser.add_argument("--entropy_coef", type=float, default=0.01,
                         help='entropy term coefficient (default: 0.01)')
     # todo: lagrangian_coef is the lagrangian coefficient for mappo_lagrangian
-    parser.add_argument("--lamda_lagr", type=float, default=0.78,
-                        help='lagrangrian coef coefficient (default: 0.78)')
-    parser.add_argument("--lagrangian_coef_rate", type=float, default=5e-4,
-                        help='lagrangrian coef learning rate (default: 5e-4)')
+    parser.add_argument("--lamda_lagr", type=float, default=0.1,
+                        help='lagrangrian coef coefficient (default: 0.1, reduced from 0.78)')
+    parser.add_argument("--lagrangian_coef_rate", type=float, default=1e-4,
+                        help='lagrangrian coef learning rate (default: 1e-4, increased from 5e-4)')
 
     parser.add_argument("--lagrangian_coef", type=float, default=0.01,
                         help='entropy term coefficient (default: 0.01)')
@@ -293,6 +293,6 @@ def get_config():
     parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")
 
     # safe parameters
-    parser.add_argument("--safety_bound", type=float, default=1, help="constraint upper bound")
+    parser.add_argument("--safety_bound", type=float, default=0.2, help="constraint upper bound (adjusted for Ant-v2)")
 
     return parser
