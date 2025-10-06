@@ -192,8 +192,6 @@ class AsyncRunner(Runner):
             # 记录同步信息
             if hasattr(self, 'logger'):
                 self.logger.info(f"同步拉格朗日乘子: {avg_lamda:.6f}")
-        
-        return train_infos
     
     def record_agent_importance(self, agent_id, grad_norm):
         """
