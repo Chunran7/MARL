@@ -76,12 +76,12 @@ def make_eval_env(all_args):
 
 
 def parse_args(args, parser):
-    parser.add_argument('--scenario', type=str, default='Ant-v2', help="Which scenario to run on")
+    parser.add_argument('--scenario', type=str, default='Hopper-v2', help="Which mujoco task to run on")
     parser.add_argument("--num_agents", type=int, default=2, help="number of players")
 
     # 环境相关参数
-    parser.add_argument("--agent_conf", type=str, default="2x4", help="Agents configuration")
-    parser.add_argument("--agent_obsk", type=int, default=1, help="Agents observation")
+    parser.add_argument("--agent_conf", type=str, default="3x1", help="Agents configuration")
+    parser.add_argument("--agent_obsk", type=int, default=0, help="Agents observation")
     parser.add_argument("--add_move_state", action='store_true', default=False)
     parser.add_argument("--add_local_obs", action='store_true', default=False)
     parser.add_argument("--add_distance_state", action='store_true', default=False)
@@ -155,7 +155,7 @@ def main(args):
         # 同步模式 - 确保使用同步算法
         if all_args.algorithm_name.strip() == '' or all_args.algorithm_name == "async_mappo_lagr":
             all_args.algorithm_name = "mappo_lagr"
-        print("标准MAPPO-Lagrangian配置: ", all_args)
+        print("mumu config: ", all_args)
 
     # 验证算法名称
     valid_algorithms = ["mappo_lagr", "async_mappo_lagr"]
@@ -202,10 +202,10 @@ def main(args):
     torch.cuda.manual_seed_all(all_args.seed)
     np.random.seed(all_args.seed)
 
-    # 环境设置
+    # env
     envs = make_train_env(all_args)
     eval_envs = make_eval_env(all_args) if all_args.use_eval else None
-    num_agents = all_args.num_agents
+    num_agents = envs.n_agents
 
     config = {
         "all_args": all_args,
@@ -233,9 +233,9 @@ def main(args):
     runner = Runner(config)
     runner.run()
 
-    # 清理
+    # post process
     envs.close()
-    if eval_envs is not None:
+    if all_args.use_eval and eval_envs is not envs:
         eval_envs.close()
 
     if all_args.use_wandb:
